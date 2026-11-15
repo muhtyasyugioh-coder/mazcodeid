@@ -51,6 +51,7 @@ import { QuestionBankManager } from './components/QuestionBankManager.tsx';
 import { MonitoringDashboard } from './components/MonitoringDashboard.tsx';
 import { StudentExamRoom } from './components/StudentExamRoom.tsx';
 import { StudentManager, StudentPayload } from './components/StudentManager.tsx';
+import { executeApiRequest } from './utils/clientCbtFallback.ts';
 import { auth, googleAuthProvider } from './lib/firebase.ts';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import campusHeroImg from './assets/images/unikma_campus_hero_1794677775495.jpg';
@@ -240,12 +241,10 @@ export default function App() {
   // Load public website identity on initial load
   const fetchPublicWebsiteSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/public/website-settings');
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.siteName) {
-          setPublicSite(data);
-        }
+      const data = await executeApiRequest('/api/public/website-settings');
+      const setting = data?.activeSetting || data;
+      if (setting && setting.siteName) {
+        setPublicSite(setting);
       }
     } catch {
       // Ignore network error on public fetch
@@ -262,19 +261,9 @@ export default function App() {
       if (!token) return;
       try {
         setLoading(true);
-        const res = await fetch('/api/cbt/state', {
+        const data: CbtSystemState = await executeApiRequest('/api/cbt/state', {
           headers: { Authorization: `Bearer ${token}` },
         });
-        if (!res.ok) {
-          if (res.status === 401) {
-            localStorage.removeItem('unikma_cbt_token');
-            localStorage.removeItem('unikma_cbt_user');
-            setAuthToken(null);
-            setCurrentUser(null);
-          }
-          throw new Error('Gagal memuat state sistem CBT');
-        }
-        const data: CbtSystemState = await res.json();
         setState(data);
         if (data.websiteSettings && data.websiteSettings.length > 0) {
           const active =
@@ -298,7 +287,13 @@ export default function App() {
         }
         setErrorMsg(null);
       } catch (err: any) {
-        setErrorMsg(err.message);
+        if (err?.status === 401) {
+          localStorage.removeItem('unikma_cbt_token');
+          localStorage.removeItem('unikma_cbt_user');
+          setAuthToken(null);
+          setCurrentUser(null);
+        }
+        setErrorMsg(err.message || 'Gagal memuat state sistem CBT');
       } finally {
         setLoading(false);
       }
@@ -374,7 +369,7 @@ export default function App() {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const res = await fetch('/api/auth/institutional-login', {
+      const data = await executeApiRequest('/api/auth/institutional-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -382,10 +377,6 @@ export default function App() {
           password: passwordInput,
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || 'Email atau password tidak valid');
-      }
       localStorage.setItem('unikma_cbt_token', data.token);
       localStorage.setItem('unikma_cbt_user', JSON.stringify(data.user));
       setAuthToken(data.token);
@@ -393,7 +384,7 @@ export default function App() {
       setActiveTab('dashboard');
       await fetchState(data.token);
     } catch (err: any) {
-      setErrorMsg(err.message);
+      setErrorMsg(err.message || 'Email atau password tidak valid');
     } finally {
       setLoading(false);
     }
@@ -403,7 +394,7 @@ export default function App() {
     try {
       setLoading(true);
       setErrorMsg(null);
-      const res = await fetch('/api/auth/student-login', {
+      const data = await executeApiRequest('/api/auth/student-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -411,12 +402,6 @@ export default function App() {
           fullName: fullNameInput.trim(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(
-          data.error || 'Kombinasi NIM dan Nama Lengkap mahasiswa tidak valid.'
-        );
-      }
       localStorage.setItem('unikma_cbt_token', data.token);
       localStorage.setItem('unikma_cbt_user', JSON.stringify(data.user));
       setAuthToken(data.token);
@@ -424,7 +409,9 @@ export default function App() {
       setActiveTab('dashboard');
       await fetchState(data.token);
     } catch (err: any) {
-      setErrorMsg(err.message);
+      setErrorMsg(
+        err.message || 'Kombinasi NIM dan Nama Lengkap mahasiswa tidak valid.'
+      );
     } finally {
       setLoading(false);
     }
@@ -458,7 +445,7 @@ export default function App() {
 
   const apiCall = async (url: string, method: string, body?: any) => {
     if (!authToken) return null;
-    const res = await fetch(url, {
+    const result = await executeApiRequest(url, {
       method,
       headers: {
         'Content-Type': 'application/json',
@@ -466,11 +453,6 @@ export default function App() {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      throw new Error(errData.error || 'Operasi gagal dijalankan');
-    }
-    const result = await res.json();
     await fetchState();
     return result;
   };

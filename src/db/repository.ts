@@ -31,7 +31,9 @@ import {
   toPublicSnapshotUrl,
 } from '../utils/cbtLogic.ts';
 
-const SNAPSHOT_UPLOAD_DIR = path.resolve(process.cwd(), 'uploads', 'snapshots');
+export const SNAPSHOT_UPLOAD_DIR = process.env.VERCEL
+  ? path.join('/tmp', 'uploads', 'snapshots')
+  : path.resolve(process.cwd(), 'uploads', 'snapshots');
 
 async function saveSnapshotImageToDisk(
   rawImageUrl: string,
@@ -41,11 +43,15 @@ async function saveSnapshotImageToDisk(
   if (!parsed) {
     return rawImageUrl || DEFAULT_STUDENT_IMG;
   }
-  await fs.mkdir(SNAPSHOT_UPLOAD_DIR, { recursive: true });
-  const fileName = `snap_${meta.examId}_${meta.sessionId}_seq${meta.sequenceNumber}_${Date.now()}.${parsed.extension}`;
-  const fullPath = path.join(SNAPSHOT_UPLOAD_DIR, fileName);
-  await fs.writeFile(fullPath, Buffer.from(parsed.base64Data, 'base64'));
-  return `/uploads/snapshots/${fileName}`;
+  try {
+    await fs.mkdir(SNAPSHOT_UPLOAD_DIR, { recursive: true });
+    const fileName = `snap_${meta.examId}_${meta.sessionId}_seq${meta.sequenceNumber}_${Date.now()}.${parsed.extension}`;
+    const fullPath = path.join(SNAPSHOT_UPLOAD_DIR, fileName);
+    await fs.writeFile(fullPath, Buffer.from(parsed.base64Data, 'base64'));
+    return `/uploads/snapshots/${fileName}`;
+  } catch {
+    return rawImageUrl;
+  }
 }
 
 async function removeSnapshotFileFromDisk(storedUrl: string) {

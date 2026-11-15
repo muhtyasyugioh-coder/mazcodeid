@@ -1,10 +1,10 @@
 import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
-import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import * as dotenv from 'dotenv';
 import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
+import { hasDatabaseConfig } from './src/db/index.ts';
 import {
   ensureSeeded,
   authenticateWithCredentials,
@@ -53,38 +53,37 @@ import {
 
 dotenv.config();
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
-async function startServer() {
-  const app = express();
-  const httpServer = createServer(app);
+export const app = express();
+const httpServer = createServer(app);
 
-  // Increase payload limit for webcam base64 snapshots & website photo uploads
-  app.use(express.json({ limit: '20mb' }));
+// Increase payload limit for webcam base64 snapshots & website photo uploads
+app.use(express.json({ limit: '20mb' }));
 
-  // Serve compressed snapshot files directly from disk with browser caching
-  app.use(
-    '/uploads',
-    express.static(path.resolve(process.cwd(), 'uploads'), { maxAge: '1d' })
-  );
+// Serve compressed snapshot files directly from disk with browser caching
+const uploadsDir = process.env.VERCEL
+  ? path.join('/tmp', 'uploads')
+  : path.resolve(process.cwd(), 'uploads');
+app.use('/uploads', express.static(uploadsDir, { maxAge: '1d' }));
 
-  const wss = new WebSocketServer({
+// Fast check for Vercel deployments where SQL_HOST / DATABASE_URL is not configured yet
+app.use('/api', (_req, res, next) => {
+  if (!hasDatabaseConfig()) {
+    return res.status(503).json({
+      vercelFallbackRequired: true,
+      error: 'Database eksternal belum dikonfigurasi pada environment ini.',
+    });
+  }
+  next();
+});
+
+let wss: WebSocketServer | null = null;
+if (!process.env.VERCEL) {
+  wss = new WebSocketServer({
     server: httpServer,
     path: '/ws-proctoring',
   });
-
-  const broadcastEvent = (type: string, payload: unknown) => {
-    const message = JSON.stringify({
-      type,
-      payload,
-      timestamp: new Date().toISOString(),
-    });
-    wss.clients.forEach((client) => {
-      if (client.readyState === WebSocket.OPEN) {
-        client.send(message);
-      }
-    });
-  };
 
   wss.on('connection', (ws) => {
     ws.send(
@@ -95,7 +94,23 @@ async function startServer() {
       })
     );
   });
+}
 
+const broadcastEvent = (type: string, payload: unknown) => {
+  if (!wss) return;
+  const message = JSON.stringify({
+    type,
+    payload,
+    timestamp: new Date().toISOString(),
+  });
+  wss.clients.forEach((client) => {
+    if (client.readyState === WebSocket.OPEN) {
+      client.send(message);
+    }
+  });
+};
+
+function registerRoutes() {
   // Public endpoint to get active website identity/photo for Login Portal
   app.get('/api/public/website-settings', async (_req, res) => {
     try {
@@ -854,8 +869,13 @@ async function startServer() {
 
   app.patch('/api/cbt/violations/:id', requireAuth, handleVerifyViolation);
   app.post('/api/cbt/violations/:id/verify', requireAuth, handleVerifyViolation);
+}
 
+registerRoutes();
+
+async function startServer() {
   if (process.env.NODE_ENV !== 'production') {
+    const { createServer: createViteServer } = await import('vite');
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: 'spa',
@@ -874,4 +894,8 @@ async function startServer() {
   });
 }
 
-startServer();
+if (!process.env.VERCEL) {
+  startServer();
+}
+
+export default app;

@@ -170,3 +170,33 @@ test('buildStudentExportRows and buildStudentTemplateRows output consistent Exce
   assert.equal(template[0]['Kode Prodi'], 'IF');
   assert.equal(template[0]['Kode Kelas'], 'IF-1A');
 });
+
+test('safeParseJsonResponse and handleClientFallbackRequest gracefully handle Vercel non-JSON 404 response', async () => {
+  const {
+    safeParseJsonResponse,
+    shouldUseClientFallback,
+    handleClientFallbackRequest,
+  } = await import('./clientCbtFallback.ts');
+
+  const fakeVercel404 = new Response('The page could not be found\n\nNOT_FOUND', {
+    status: 404,
+    headers: { 'content-type': 'text/plain; charset=utf-8' },
+  });
+
+  const parsed = await safeParseJsonResponse(fakeVercel404);
+  assert.equal(parsed.isJson, false);
+  assert.equal(shouldUseClientFallback(parsed), true);
+
+  const loginRes = handleClientFallbackRequest(
+    '/api/auth/institutional-login',
+    'POST',
+    {
+      email: 'muhtyasyugi@unikma.ac.id',
+      password: 'muhtyasyugi@123',
+    }
+  );
+  assert.equal(loginRes.user.email, 'muhtyasyugi@unikma.ac.id');
+  assert.equal(loginRes.user.roleName, 'admin');
+  assert.ok(loginRes.token.startsWith('unikma-session:'));
+});
+
