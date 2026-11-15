@@ -111,8 +111,8 @@ export default function App() {
 
   // Login Form State
   const [loginMode, setLoginMode] = useState<'staff' | 'mahasiswa'>('staff');
-  const [loginEmail, setLoginEmail] = useState('muhtyasyugi@unikma.ac.id');
-  const [loginPassword, setLoginPassword] = useState('muhtyasyugi@123');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [loginNim, setLoginNim] = useState('');
   const [loginStudentName, setLoginStudentName] = useState('');
 
@@ -441,6 +441,10 @@ export default function App() {
     setCurrentUser(null);
     setState(null);
     setActiveExamSession(null);
+    setLoginEmail('');
+    setLoginPassword('');
+    setLoginNim('');
+    setLoginStudentName('');
   };
 
   const apiCall = async (url: string, method: string, body?: any) => {
@@ -787,6 +791,7 @@ export default function App() {
             ) : (
               <>
                 <form
+                  autoComplete="off"
                   onSubmit={(e) => {
                     e.preventDefault();
                     handleCredentialLogin(loginEmail, loginPassword);
@@ -804,10 +809,11 @@ export default function App() {
                       id="login-email"
                       type="email"
                       required
+                      autoComplete="off"
                       value={loginEmail}
                       onChange={(e) => setLoginEmail(e.target.value)}
                       className="w-full h-11 px-3.5 rounded-md border border-[#CBD5E1] text-sm focus:outline-none focus:border-[#F97316]"
-                      placeholder="muhtyasyugi@unikma.ac.id"
+                      placeholder="Masukkan email institusi"
                     />
                   </div>
                   <div>
@@ -821,10 +827,11 @@ export default function App() {
                       id="login-password"
                       type="password"
                       required
+                      autoComplete="new-password"
                       value={loginPassword}
                       onChange={(e) => setLoginPassword(e.target.value)}
                       className="w-full h-11 px-3.5 rounded-md border border-[#CBD5E1] text-sm focus:outline-none focus:border-[#F97316]"
-                      placeholder="••••••••"
+                      placeholder="Masukkan kata sandi"
                     />
                   </div>
                   <button
