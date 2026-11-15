@@ -1,0 +1,6 @@
+{
+  "name": "UNIKMA SMART CBT – ANTI CHEATING EXAM SYSTEM",
+  "description": "Ujian Digital yang Aman, Transparan, dan Terpercaya — Sistem Computer Based Test & Online Proctoring Universitas Komputama.",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
