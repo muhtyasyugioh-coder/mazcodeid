@@ -1,4 +1,5 @@
 import { CbtSystemState, QuestionOptionRecord, StudentRecord, UserRecord } from '../types/cbt.ts';
+import initialSeedSnapshot from '../db/initialSeedSnapshot.json';
 import {
   computeGradeLetter,
   computeWarningLevel,
@@ -6,12 +7,10 @@ import {
   matchesStudentCredentials,
 } from './cbtLogic.ts';
 
-const STORAGE_KEY = 'mazcodeid_cbt_vercel_state_v1';
+const STORAGE_KEY = 'mazcodeid_cbt_vercel_state_v2';
 
 const DEFAULT_HERO_IMG =
   '/src/assets/images/unikma_campus_hero_1794677775495.jpg';
-const DEFAULT_LECTURER_IMG =
-  '/src/assets/images/avatar_lecturer_1_1794677775807.jpg';
 
 export interface ParsedHttpResponse {
   isJson: boolean;
@@ -82,58 +81,7 @@ export function shouldUseClientFallback(parsed: ParsedHttpResponse): boolean {
 }
 
 export function createInitialFallbackState(): CbtSystemState {
-  return {
-    websiteSettings: [
-      {
-        id: 1,
-        siteName: 'MazCodeID SMART CBT – ANTI CHEATING EXAM SYSTEM',
-        universityName: 'MazCodeID',
-        tagline: 'Ujian Digital yang Aman, Transparan, dan Terpercaya.',
-        description:
-          'Platform Computer Based Test (CBT) dan Online Proctoring resmi MazCodeID dengan pengawasan kamera WebRTC, 3x Snapshot otomatis, dan deteksi pelanggaran real-time.',
-        logoText: 'MCD',
-        logoImageUrl: '',
-        heroImageUrl: DEFAULT_HERO_IMG,
-        contactEmail: 'muhtyasyugi@unikma.ac.id',
-        footerText: '© 2026 MazCodeID. Hak Cipta Dilindungi.',
-        isActive: true,
-        updatedAt: new Date().toISOString(),
-      },
-    ],
-    roles: [
-      { id: 1, name: 'admin', description: 'Administrator Utama Sistem CBT' },
-      { id: 2, name: 'dosen', description: 'Dosen Pengampu Mata Kuliah & Pengawas Ujian' },
-      { id: 3, name: 'mahasiswa', description: 'Mahasiswa Peserta Ujian' },
-    ],
-    users: [
-      {
-        id: 1,
-        uid: 'uid-admin-muhtyasyugi',
-        email: 'muhtyasyugi@unikma.ac.id',
-        passwordHash: 'muhtyasyugi@123',
-        fullName: 'Muhtyas Yugi (Super Admin MazCodeID)',
-        roleId: 1,
-        roleName: 'admin',
-        avatarUrl: DEFAULT_LECTURER_IMG,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      },
-    ],
-    faculties: [],
-    studyPrograms: [],
-    classes: [],
-    lecturers: [],
-    students: [],
-    courses: [],
-    exams: [],
-    questions: [],
-    sessions: [],
-    answers: [],
-    snapshots: [],
-    violations: [],
-    results: [],
-    auditLogs: [],
-  };
+  return JSON.parse(JSON.stringify(initialSeedSnapshot)) as CbtSystemState;
 }
 
 function loadFallbackState(): CbtSystemState {
@@ -155,7 +103,7 @@ function loadFallbackState(): CbtSystemState {
     if (!hasAdmin) {
       parsed.users = [
         ...(parsed.users || []),
-        createInitialFallbackState().users[0],
+        ...createInitialFallbackState().users,
       ];
     }
     return parsed;
@@ -1022,6 +970,82 @@ export function handleClientFallbackRequest(
   return { ok: true };
 }
 
+function getSupabaseClientConfig(): { url: string; key: string } | null {
+  try {
+    const metaEnv = (import.meta as any)?.env || {};
+    const url = String(metaEnv.VITE_SUPABASE_URL || '').trim().replace(/\/+$/, '');
+    const key = String(metaEnv.VITE_SUPABASE_ANON_KEY || '').trim();
+    if (url && key) {
+      return { url, key };
+    }
+  } catch {
+    // Ignore in Node test runtime
+  }
+  return null;
+}
+
+async function pullStateFromSupabaseRest(): Promise<void> {
+  const cfg = getSupabaseClientConfig();
+  if (!cfg || typeof window === 'undefined') return;
+  try {
+    const res = await fetch(
+      `${cfg.url}/rest/v1/cbt_cloud_state?id=eq.1&select=state_json`,
+      {
+        headers: {
+          apikey: cfg.key,
+          Authorization: `Bearer ${cfg.key}`,
+        },
+      }
+    );
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (Array.isArray(rows) && rows[0]?.state_json) {
+      saveFallbackState(rows[0].state_json as CbtSystemState);
+    } else if (Array.isArray(rows) && rows.length === 0) {
+      const initial = loadFallbackState();
+      await pushStateToSupabaseRest(initial);
+    }
+  } catch {
+    // Fallback to local state if table not created yet
+  }
+}
+
+async function pushStateToSupabaseRest(state: CbtSystemState): Promise<void> {
+  const cfg = getSupabaseClientConfig();
+  if (!cfg || typeof window === 'undefined') return;
+  try {
+    await fetch(`${cfg.url}/rest/v1/cbt_cloud_state`, {
+      method: 'POST',
+      headers: {
+        apikey: cfg.key,
+        Authorization: `Bearer ${cfg.key}`,
+        'Content-Type': 'application/json',
+        Prefer: 'resolution=merge-duplicates',
+      },
+      body: JSON.stringify({
+        id: 1,
+        state_json: state,
+        updated_at: new Date().toISOString(),
+      }),
+    });
+  } catch {
+    // Ignore network error
+  }
+}
+
+async function runFallbackWithSupabaseSync(
+  url: string,
+  method: string,
+  parsedBody?: any
+): Promise<any> {
+  await pullStateFromSupabaseRest();
+  const result = handleClientFallbackRequest(url, method, parsedBody);
+  if (method !== 'GET') {
+    await pushStateToSupabaseRest(loadFallbackState());
+  }
+  return result;
+}
+
 export async function executeApiRequest(
   url: string,
   options: RequestInit = {}
@@ -1037,7 +1061,7 @@ export async function executeApiRequest(
     const parsed = await safeParseJsonResponse(res);
 
     if (shouldUseClientFallback(parsed)) {
-      return handleClientFallbackRequest(url, method, parsedBody);
+      return await runFallbackWithSupabaseSync(url, method, parsedBody);
     }
 
     if (!parsed.ok) {
@@ -1056,8 +1080,9 @@ export async function executeApiRequest(
       String(err?.message || '').includes('Failed to fetch') ||
       String(err?.message || '').includes('NetworkError')
     ) {
-      return handleClientFallbackRequest(url, method, parsedBody);
+      return await runFallbackWithSupabaseSync(url, method, parsedBody);
     }
     throw err;
   }
 }
+

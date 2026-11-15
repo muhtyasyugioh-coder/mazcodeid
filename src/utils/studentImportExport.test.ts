@@ -200,3 +200,17 @@ test('safeParseJsonResponse and handleClientFallbackRequest gracefully handle Ve
   assert.ok(loginRes.token.startsWith('unikma-session:'));
 });
 
+test('sanitizePostgresConnectionString encodes special characters in Supabase password and strips sslmode', async () => {
+  const { sanitizePostgresConnectionString } = await import('../db/index.ts');
+  const raw =
+    'postgresql://postgres.projref:Pa#ss?wo/rd,1@aws-1-ap-northeast-1.pooler.supabase.com:6543/postgres?sslmode=require&pgbouncer=true';
+  const sanitized = sanitizePostgresConnectionString(raw);
+  const parsed = new URL(sanitized);
+  assert.equal(parsed.hostname, 'aws-1-ap-northeast-1.pooler.supabase.com');
+  assert.equal(parsed.port, '6543');
+  assert.equal(parsed.username, 'postgres.projref');
+  assert.equal(decodeURIComponent(parsed.password), 'Pa#ss?wo/rd,1');
+  assert.equal(parsed.searchParams.has('sslmode'), false);
+});
+
+

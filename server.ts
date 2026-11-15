@@ -138,8 +138,15 @@ function registerRoutes() {
       const token = `unikma-session:${user.uid}:${user.email}:${user.roleName}`;
       res.json({ user, token });
     } catch (error: any) {
+      const msg = String(error?.message || '');
+      if (msg.toLowerCase().includes('database')) {
+        return res.status(503).json({
+          vercelFallbackRequired: true,
+          error: msg,
+        });
+      }
       res.status(401).json({
-        error: error.message || 'Email atau kata sandi tidak valid.',
+        error: msg || 'Email atau kata sandi tidak valid.',
       });
     }
   });
@@ -156,9 +163,16 @@ function registerRoutes() {
       const token = `unikma-session:${user.uid}:${user.email}:${user.roleName}`;
       res.json({ user, student, token });
     } catch (error: any) {
+      const msg = String(error?.message || '');
+      if (msg.toLowerCase().includes('database')) {
+        return res.status(503).json({
+          vercelFallbackRequired: true,
+          error: msg,
+        });
+      }
       res.status(401).json({
         error:
-          error.message ||
+          msg ||
           'Kombinasi NIM dan Nama Lengkap mahasiswa tidak valid.',
       });
     }

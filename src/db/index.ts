@@ -6,18 +6,64 @@ declare global {
   var _postgresPool: Pool | undefined;
 }
 
+export function sanitizePostgresConnectionString(rawUrl: string): string {
+  const trimmed = (rawUrl || '').trim();
+  const match = /^(postgres(?:ql)?):\/\/([^:]+):(.+)@([^@/]+(?::\d+)?\/[^?#]*)(.*)$/i.exec(
+    trimmed
+  );
+
+  let normalized = trimmed;
+  if (match) {
+    const [, proto, user, rawPass, hostAndDb] = match;
+    let cleanPass = rawPass;
+    if (cleanPass.startsWith('[') && cleanPass.endsWith(']')) {
+      cleanPass = cleanPass.slice(1, -1);
+    }
+    try {
+      cleanPass = decodeURIComponent(cleanPass);
+    } catch {
+      // Keep raw password if it contains unescaped % characters
+    }
+    const encodedPass = encodeURIComponent(cleanPass);
+    normalized = `${proto}://${user}:${encodedPass}@${hostAndDb}`;
+  }
+
+  try {
+    const parsed = new URL(normalized);
+    parsed.searchParams.delete('sslmode');
+    parsed.searchParams.delete('pgbouncer');
+    parsed.searchParams.delete('supa');
+    parsed.searchParams.delete('uselibpqcompat');
+    return parsed.toString();
+  } catch {
+    return normalized
+      .replace(/([?&])sslmode=[^&]+(&|$)/i, '$1')
+      .replace(/[?&]$/, '');
+  }
+}
+
+export function getConnectionString(): string | undefined {
+  const raw =
+    process.env.SUPABASE_DB_URL ||
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.POSTGRES_URL_NON_POOLING ||
+    process.env.POSTGRES_PRISMA_URL ||
+    process.env.NEON_DATABASE_URL;
+  return raw ? sanitizePostgresConnectionString(raw.trim()) : undefined;
+}
+
 export function hasDatabaseConfig(): boolean {
   return Boolean(
-    process.env.SQL_HOST ||
-      process.env.DATABASE_URL ||
-      process.env.POSTGRES_URL
+    getConnectionString() ||
+      process.env.SQL_HOST ||
+      process.env.PGHOST
   );
 }
 
 export const createPool = () => {
   if (!global._postgresPool) {
-    const connectionString =
-      process.env.DATABASE_URL || process.env.POSTGRES_URL;
+    const connectionString = getConnectionString();
 
     global._postgresPool = connectionString
       ? new Pool({
@@ -28,15 +74,16 @@ export const createPool = () => {
               ? undefined
               : { rejectUnauthorized: false },
           max: 10,
-          connectionTimeoutMillis: 8000,
+          connectionTimeoutMillis: 10000,
         })
       : new Pool({
-          host: process.env.SQL_HOST,
-          user: process.env.SQL_USER,
-          password: process.env.SQL_PASSWORD,
-          database: process.env.SQL_DB_NAME,
+          host: process.env.SQL_HOST || process.env.PGHOST,
+          user: process.env.SQL_USER || process.env.PGUSER,
+          password: process.env.SQL_PASSWORD || process.env.PGPASSWORD,
+          database: process.env.SQL_DB_NAME || process.env.PGDATABASE,
+          port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
           max: 10,
-          connectionTimeoutMillis: 8000,
+          connectionTimeoutMillis: 10000,
         });
 
     global._postgresPool.on('error', (err) => {
@@ -46,6 +93,6 @@ export const createPool = () => {
   return global._postgresPool;
 };
 
-const pool = createPool();
+export const pool = createPool();
 
 export const db = drizzle(pool, { schema });

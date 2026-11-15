@@ -1,7 +1,8 @@
 import { eq, desc, and, lt, inArray } from 'drizzle-orm';
 import fs from 'fs/promises';
 import path from 'path';
-import { db } from './index.ts';
+import { db, pool } from './index.ts';
+import initialSeedSnapshot from './initialSeedSnapshot.json';
 import {
   websiteSettings,
   roles,
@@ -71,12 +72,256 @@ const DEFAULT_STUDENT_IMG =
 const DEFAULT_LECTURER_IMG =
   '/src/assets/images/avatar_lecturer_1_1794677775807.jpg';
 
+async function ensureTablesExist() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS website_settings (
+      id SERIAL PRIMARY KEY,
+      site_name TEXT NOT NULL,
+      university_name TEXT NOT NULL,
+      tagline TEXT NOT NULL,
+      description TEXT NOT NULL,
+      logo_text TEXT NOT NULL,
+      logo_image_url TEXT,
+      hero_image_url TEXT NOT NULL,
+      contact_email TEXT,
+      footer_text TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS roles (
+      id SERIAL PRIMARY KEY,
+      name TEXT NOT NULL UNIQUE,
+      description TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS users (
+      id SERIAL PRIMARY KEY,
+      uid TEXT NOT NULL UNIQUE,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      full_name TEXT NOT NULL,
+      role_id INTEGER NOT NULL REFERENCES roles(id) ON DELETE RESTRICT,
+      role_name TEXT NOT NULL,
+      avatar_url TEXT,
+      is_active BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS faculties (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      dean_name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS study_programs (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      degree TEXT NOT NULL,
+      faculty_id INTEGER REFERENCES faculties(id) ON DELETE SET NULL,
+      head_name TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS classes (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      semester INTEGER NOT NULL,
+      academic_year TEXT NOT NULL,
+      study_program_id INTEGER REFERENCES study_programs(id) ON DELETE SET NULL,
+      capacity INTEGER NOT NULL DEFAULT 40,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS lecturers (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      nidn TEXT NOT NULL UNIQUE,
+      full_name TEXT NOT NULL,
+      faculty_id INTEGER REFERENCES faculties(id) ON DELETE SET NULL,
+      study_program_id INTEGER REFERENCES study_programs(id) ON DELETE SET NULL,
+      specialization TEXT NOT NULL,
+      phone TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS students (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      nim TEXT NOT NULL UNIQUE,
+      full_name TEXT NOT NULL,
+      faculty_id INTEGER REFERENCES faculties(id) ON DELETE SET NULL,
+      study_program_id INTEGER REFERENCES study_programs(id) ON DELETE SET NULL,
+      class_id INTEGER REFERENCES classes(id) ON DELETE SET NULL,
+      semester INTEGER NOT NULL DEFAULT 1,
+      enrollment_year INTEGER NOT NULL DEFAULT 2026,
+      avatar_url TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS courses (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      sks INTEGER NOT NULL,
+      semester INTEGER NOT NULL,
+      study_program_id INTEGER REFERENCES study_programs(id) ON DELETE SET NULL,
+      lecturer_id INTEGER REFERENCES lecturers(id) ON DELETE SET NULL,
+      description TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS exams (
+      id SERIAL PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      title TEXT NOT NULL,
+      course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+      lecturer_id INTEGER REFERENCES lecturers(id) ON DELETE SET NULL,
+      class_id INTEGER REFERENCES classes(id) ON DELETE SET NULL,
+      exam_type TEXT NOT NULL,
+      duration_minutes INTEGER NOT NULL,
+      start_time TEXT NOT NULL,
+      end_time TEXT NOT NULL,
+      total_questions INTEGER NOT NULL,
+      passing_grade INTEGER NOT NULL DEFAULT 70,
+      randomize_questions BOOLEAN NOT NULL DEFAULT TRUE,
+      randomize_options BOOLEAN NOT NULL DEFAULT TRUE,
+      max_attempts INTEGER NOT NULL DEFAULT 1,
+      require_camera BOOLEAN NOT NULL DEFAULT TRUE,
+      require_fullscreen BOOLEAN NOT NULL DEFAULT TRUE,
+      snapshot_count INTEGER NOT NULL DEFAULT 3,
+      max_violations INTEGER NOT NULL DEFAULT 3,
+      violation_action TEXT NOT NULL DEFAULT 'warn_and_flag',
+      status TEXT NOT NULL DEFAULT 'Berlangsung',
+      results_published BOOLEAN NOT NULL DEFAULT TRUE,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS exam_questions (
+      id SERIAL PRIMARY KEY,
+      course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+      exam_id INTEGER REFERENCES exams(id) ON DELETE SET NULL,
+      question_type TEXT NOT NULL,
+      difficulty TEXT NOT NULL DEFAULT 'Sedang',
+      question_text TEXT NOT NULL,
+      media_type TEXT NOT NULL DEFAULT 'none',
+      media_content TEXT,
+      weight INTEGER NOT NULL DEFAULT 10,
+      correct_answer_key TEXT NOT NULL,
+      explanation TEXT,
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS question_options (
+      id SERIAL PRIMARY KEY,
+      question_id INTEGER NOT NULL REFERENCES exam_questions(id) ON DELETE CASCADE,
+      option_label TEXT NOT NULL,
+      option_text TEXT NOT NULL,
+      is_correct BOOLEAN NOT NULL DEFAULT FALSE
+    );
+    CREATE TABLE IF NOT EXISTS exam_sessions (
+      id SERIAL PRIMARY KEY,
+      exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'Sedang Ujian',
+      camera_status TEXT NOT NULL DEFAULT 'Aktif',
+      connection_status TEXT NOT NULL DEFAULT 'Online',
+      fullscreen_status BOOLEAN NOT NULL DEFAULT TRUE,
+      snapshot1_status TEXT NOT NULL DEFAULT 'Belum Diambil',
+      snapshot2_status TEXT NOT NULL DEFAULT 'Belum Diambil',
+      snapshot3_status TEXT NOT NULL DEFAULT 'Belum Diambil',
+      violation_count INTEGER NOT NULL DEFAULT 0,
+      warning_level INTEGER NOT NULL DEFAULT 0,
+      remaining_seconds INTEGER NOT NULL,
+      question_order_json TEXT,
+      started_at TIMESTAMP DEFAULT NOW(),
+      finished_at TIMESTAMP,
+      last_active_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS student_answers (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+      question_id INTEGER NOT NULL REFERENCES exam_questions(id) ON DELETE CASCADE,
+      answer_value TEXT NOT NULL,
+      is_doubtful BOOLEAN NOT NULL DEFAULT FALSE,
+      is_correct BOOLEAN,
+      score_earned INTEGER NOT NULL DEFAULT 0,
+      lecturer_feedback TEXT,
+      updated_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS exam_snapshots (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+      exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      nim TEXT NOT NULL,
+      student_name TEXT NOT NULL,
+      course_name TEXT NOT NULL,
+      sequence_number INTEGER NOT NULL,
+      trigger_stage TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'Berhasil',
+      image_data_url TEXT NOT NULL,
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      captured_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS violation_logs (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+      exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      nim TEXT NOT NULL,
+      student_name TEXT NOT NULL,
+      course_name TEXT NOT NULL,
+      violation_type TEXT NOT NULL,
+      warning_level INTEGER NOT NULL,
+      description TEXT NOT NULL,
+      verified_by_admin BOOLEAN NOT NULL DEFAULT FALSE,
+      action_taken TEXT NOT NULL DEFAULT 'Peringatan Otomatis',
+      detected_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS exam_results (
+      id SERIAL PRIMARY KEY,
+      session_id INTEGER NOT NULL REFERENCES exam_sessions(id) ON DELETE CASCADE,
+      exam_id INTEGER NOT NULL REFERENCES exams(id) ON DELETE CASCADE,
+      student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+      nim TEXT NOT NULL,
+      student_name TEXT NOT NULL,
+      study_program_name TEXT NOT NULL,
+      course_name TEXT NOT NULL,
+      correct_count INTEGER NOT NULL DEFAULT 0,
+      wrong_count INTEGER NOT NULL DEFAULT 0,
+      empty_count INTEGER NOT NULL DEFAULT 0,
+      objective_score INTEGER NOT NULL DEFAULT 0,
+      essay_score INTEGER NOT NULL DEFAULT 0,
+      final_score INTEGER NOT NULL DEFAULT 0,
+      grade_letter TEXT NOT NULL DEFAULT 'A',
+      duration_used_minutes INTEGER NOT NULL DEFAULT 0,
+      violation_count INTEGER NOT NULL DEFAULT 0,
+      verification_status TEXT NOT NULL DEFAULT 'Terverifikasi Aman',
+      is_published BOOLEAN NOT NULL DEFAULT TRUE,
+      submitted_at TIMESTAMP DEFAULT NOW()
+    );
+    CREATE TABLE IF NOT EXISTS audit_logs (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      actor_name TEXT NOT NULL,
+      actor_role TEXT NOT NULL,
+      action TEXT NOT NULL,
+      target_entity TEXT NOT NULL,
+      details TEXT NOT NULL,
+      ip_address TEXT NOT NULL DEFAULT '10.24.118.42',
+      created_at TIMESTAMP DEFAULT NOW()
+    );
+  `);
+}
+
 export async function ensureSeeded() {
   if (hasSeeded || isSeeding) return;
   isSeeding = true;
   try {
-    // 1. Ensure the 3 core RBAC roles exist
-    let allRoles = await db.select().from(roles);
+    // 1. Check if tables exist; only run DDL on fresh external databases (code 42P01)
+    let allRoles: Array<{ id: number; name: string; description: string }> = [];
+    try {
+      allRoles = await db.select().from(roles);
+    } catch (tableErr: any) {
+      await ensureTablesExist();
+      allRoles = await db.select().from(roles);
+    }
+
     if (allRoles.length === 0) {
       allRoles = await db
         .insert(roles)
@@ -99,6 +344,8 @@ export async function ensureSeeded() {
 
     const adminRole =
       allRoles.find((r) => r.name === 'admin') || allRoles[0];
+    const dosenRole =
+      allRoles.find((r) => r.name === 'dosen') || allRoles[0];
 
     // 2. Ensure the required Admin account (muhtyasyugi@unikma.ac.id / muhtyasyugi@123) exists
     const existingAdmin = await db
@@ -128,23 +375,158 @@ export async function ensureSeeded() {
         .where(eq(users.id, existingAdmin[0].id));
     }
 
-    // 3. Ensure default website_settings record exists for Website CRUD
+    // 3. Ensure default website_settings record exists (using user's saved MazCodeID snapshot)
     const existingSettings = await db.select().from(websiteSettings);
     if (existingSettings.length === 0) {
+      const snapSite = initialSeedSnapshot.websiteSettings?.[0];
       await db.insert(websiteSettings).values({
-        siteName: 'MazCodeID SMART CBT – ANTI CHEATING EXAM SYSTEM',
-        universityName: 'MazCodeID',
-        tagline: 'Ujian Digital yang Aman, Transparan, dan Terpercaya.',
+        siteName:
+          snapSite?.siteName ||
+          'MAZCODEID CBT – ANTI CHEATING EXAM SYSTEM',
+        universityName: snapSite?.universityName || 'MazCodeID',
+        tagline:
+          snapSite?.tagline ||
+          'Ujian Digital yang Aman, Transparan, dan Terpercaya.',
         description:
+          snapSite?.description ||
           'Platform Computer Based Test (CBT) dan Online Proctoring resmi MazCodeID dengan pengawasan kamera WebRTC, 3x Snapshot otomatis, dan deteksi pelanggaran real-time.',
-        logoText: 'MCD',
-        logoImageUrl: '',
-        heroImageUrl: DEFAULT_HERO_IMG,
-        contactEmail: 'muhtyasyugi@unikma.ac.id',
+        logoText: snapSite?.logoText || 'MCD',
+        logoImageUrl: snapSite?.logoImageUrl || '',
+        heroImageUrl: snapSite?.heroImageUrl || DEFAULT_HERO_IMG,
+        contactEmail: snapSite?.contactEmail || 'muhtyasyugi@unikma.ac.id',
         footerText:
+          snapSite?.footerText ||
           '© 2026 MazCodeID. Hak Cipta Dilindungi.',
         isActive: true,
       });
+    }
+
+    // 4. Ensure saved master data (Faculties, Study Programs, Classes, Lecturers, Courses) exist
+    let currentFaculties = await db.select().from(faculties);
+    if (currentFaculties.length === 0 && initialSeedSnapshot.faculties?.length > 0) {
+      currentFaculties = await db
+        .insert(faculties)
+        .values({
+          code: initialSeedSnapshot.faculties[0].code,
+          name: initialSeedSnapshot.faculties[0].name,
+          deanName: initialSeedSnapshot.faculties[0].deanName,
+        })
+        .returning();
+    }
+    const facId = currentFaculties[0]?.id ?? null;
+
+    let currentProdis = await db.select().from(studyPrograms);
+    if (currentProdis.length === 0 && initialSeedSnapshot.studyPrograms?.length > 0) {
+      for (const sp of initialSeedSnapshot.studyPrograms) {
+        await db.insert(studyPrograms).values({
+          code: sp.code,
+          name: sp.name,
+          degree: sp.degree,
+          facultyId: facId,
+          headName: sp.headName,
+        });
+      }
+      currentProdis = await db.select().from(studyPrograms);
+    }
+
+    const prodiIdMap = new Map<number, number>();
+    for (const snapSp of initialSeedSnapshot.studyPrograms || []) {
+      const dbSp = currentProdis.find(
+        (p) => p.code.toLowerCase() === snapSp.code.toLowerCase()
+      );
+      if (dbSp) {
+        prodiIdMap.set(snapSp.id, dbSp.id);
+      }
+    }
+
+    const currentClasses = await db.select().from(classes);
+    if (currentClasses.length === 0 && initialSeedSnapshot.classes?.length > 0) {
+      for (const cls of initialSeedSnapshot.classes) {
+        await db.insert(classes).values({
+          code: cls.code,
+          name: cls.name,
+          semester: cls.semester,
+          academicYear: cls.academicYear,
+          studyProgramId: cls.studyProgramId
+            ? prodiIdMap.get(cls.studyProgramId) ?? null
+            : null,
+          capacity: cls.capacity,
+        });
+      }
+    }
+
+    let currentLecturers = await db.select().from(lecturers);
+    if (currentLecturers.length === 0 && initialSeedSnapshot.lecturers?.length > 0) {
+      for (const lec of initialSeedSnapshot.lecturers) {
+        const snapUser = initialSeedSnapshot.users?.find(
+          (u) => u.id === lec.userId
+        );
+        if (snapUser) {
+          let userRow = (
+            await db
+              .select()
+              .from(users)
+              .where(eq(users.email, snapUser.email))
+          )[0];
+          if (!userRow) {
+            const insertedUsers = await db
+              .insert(users)
+              .values({
+                uid: snapUser.uid,
+                email: snapUser.email,
+                passwordHash: snapUser.passwordHash || 'unikma123',
+                fullName: snapUser.fullName,
+                roleId: dosenRole.id,
+                roleName: 'dosen',
+                avatarUrl: snapUser.avatarUrl || DEFAULT_LECTURER_IMG,
+                isActive: snapUser.isActive ?? true,
+              })
+              .returning();
+            userRow = insertedUsers[0];
+          }
+          if (userRow) {
+            await db.insert(lecturers).values({
+              userId: userRow.id,
+              nidn: lec.nidn,
+              fullName: lec.fullName,
+              facultyId: facId,
+              studyProgramId: lec.studyProgramId
+                ? prodiIdMap.get(lec.studyProgramId) ?? null
+                : null,
+              specialization: lec.specialization,
+              phone: lec.phone || '-',
+            });
+          }
+        }
+      }
+      currentLecturers = await db.select().from(lecturers);
+    }
+
+    const lecturerIdMap = new Map<number, number>();
+    for (const snapLec of initialSeedSnapshot.lecturers || []) {
+      const dbLec = currentLecturers.find((l) => l.nidn === snapLec.nidn);
+      if (dbLec) {
+        lecturerIdMap.set(snapLec.id, dbLec.id);
+      }
+    }
+
+    const currentCourses = await db.select().from(courses);
+    if (currentCourses.length === 0 && initialSeedSnapshot.courses?.length > 0) {
+      for (const crs of initialSeedSnapshot.courses) {
+        await db.insert(courses).values({
+          code: crs.code,
+          name: crs.name,
+          sks: crs.sks,
+          semester: crs.semester,
+          studyProgramId: crs.studyProgramId
+            ? prodiIdMap.get(crs.studyProgramId) ?? null
+            : null,
+          lecturerId: crs.lecturerId
+            ? lecturerIdMap.get(crs.lecturerId) ?? null
+            : null,
+          description: crs.description || '',
+        });
+      }
     }
 
     hasSeeded = true;
