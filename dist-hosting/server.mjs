@@ -9870,7 +9870,24 @@ async function updateWebsiteSettingRecord(id, data) {
     if (data.isActive) {
       await db.update(websiteSettings).set({ isActive: false });
     }
-    const res = await db.update(websiteSettings).set({ ...data, updatedAt: /* @__PURE__ */ new Date() }).where(eq(websiteSettings.id, id)).returning();
+    const sanitized = { updatedAt: /* @__PURE__ */ new Date() };
+    if (typeof data.siteName === "string") sanitized.siteName = data.siteName;
+    if (typeof data.universityName === "string")
+      sanitized.universityName = data.universityName;
+    if (typeof data.tagline === "string") sanitized.tagline = data.tagline;
+    if (typeof data.description === "string")
+      sanitized.description = data.description;
+    if (typeof data.logoText === "string") sanitized.logoText = data.logoText;
+    if (typeof data.logoImageUrl === "string")
+      sanitized.logoImageUrl = data.logoImageUrl;
+    if (typeof data.heroImageUrl === "string")
+      sanitized.heroImageUrl = data.heroImageUrl;
+    if (typeof data.contactEmail === "string")
+      sanitized.contactEmail = data.contactEmail;
+    if (typeof data.footerText === "string")
+      sanitized.footerText = data.footerText;
+    if (typeof data.isActive === "boolean") sanitized.isActive = data.isActive;
+    const res = await db.update(websiteSettings).set(sanitized).where(eq(websiteSettings.id, id)).returning();
     return res[0];
   } catch (error) {
     console.error("Failed to update website setting:", error);
@@ -10846,34 +10863,24 @@ async function finalizeExamSubmission(data) {
       session?.violationCount || 0,
       exam?.maxViolations || 3
     );
-    for (const item of evaluation.gradedItems) {
-      const submitted = data.answers.find(
-        (a) => a.questionId === item.questionId
+    const answerLookup = new Map(
+      data.answers.map((a) => [Number(a.questionId), a])
+    );
+    await db.delete(studentAnswers).where(eq(studentAnswers.sessionId, data.sessionId));
+    if (evaluation.gradedItems.length > 0) {
+      await db.insert(studentAnswers).values(
+        evaluation.gradedItems.map((item) => {
+          const submitted = answerLookup.get(item.questionId);
+          return {
+            sessionId: data.sessionId,
+            questionId: item.questionId,
+            answerValue: submitted?.answerValue || "",
+            isDoubtful: Boolean(submitted?.isDoubtful),
+            isCorrect: item.isCorrect,
+            scoreEarned: item.scoreEarned
+          };
+        })
       );
-      const existing = await db.select().from(studentAnswers).where(
-        and(
-          eq(studentAnswers.sessionId, data.sessionId),
-          eq(studentAnswers.questionId, item.questionId)
-        )
-      );
-      if (existing.length > 0) {
-        await db.update(studentAnswers).set({
-          answerValue: submitted?.answerValue || "",
-          isDoubtful: submitted?.isDoubtful || false,
-          isCorrect: item.isCorrect,
-          scoreEarned: item.scoreEarned,
-          updatedAt: /* @__PURE__ */ new Date()
-        }).where(eq(studentAnswers.id, existing[0].id));
-      } else {
-        await db.insert(studentAnswers).values({
-          sessionId: data.sessionId,
-          questionId: item.questionId,
-          answerValue: submitted?.answerValue || "",
-          isDoubtful: submitted?.isDoubtful || false,
-          isCorrect: item.isCorrect,
-          scoreEarned: item.scoreEarned
-        });
-      }
     }
     await db.update(examSessions).set({
       status: "Selesai",

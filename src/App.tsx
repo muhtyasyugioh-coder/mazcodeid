@@ -497,7 +497,12 @@ export default function App() {
     setLoginStudentName('');
   };
 
-  const apiCall = async (url: string, method: string, body?: any) => {
+  const apiCall = async (
+    url: string,
+    method: string,
+    body?: any,
+    options?: { skipRefresh?: boolean }
+  ) => {
     if (!authToken) return null;
     const result = await executeApiRequest(url, {
       method,
@@ -507,7 +512,9 @@ export default function App() {
       },
       body: body ? JSON.stringify(body) : undefined,
     });
-    await fetchState();
+    if (!options?.skipRefresh) {
+      await fetchState();
+    }
     return result;
   };
 
@@ -941,6 +948,9 @@ export default function App() {
     const existingSession = state.sessions.find(
       (s) => s.id === activeExamSession.sessionId
     );
+    const existingAnswers = state.answers.filter(
+      (a) => a.sessionId === activeExamSession.sessionId
+    );
 
     return (
       <StudentExamRoom
@@ -949,6 +959,7 @@ export default function App() {
         student={studentProfile}
         questions={examQuestions}
         existingSession={existingSession}
+        existingAnswers={existingAnswers}
         onStartSession={async (examId, studentId) => {
           return await apiCall('/api/cbt/sessions/start', 'POST', {
             examId,
@@ -957,13 +968,19 @@ export default function App() {
           });
         }}
         onCaptureSnapshot={async (payload) => {
-          await apiCall('/api/cbt/snapshots', 'POST', payload);
+          await apiCall('/api/cbt/snapshots', 'POST', payload, {
+            skipRefresh: true,
+          });
         }}
         onReportViolation={async (payload) => {
-          return await apiCall('/api/cbt/violations', 'POST', payload);
+          return await apiCall('/api/cbt/violations', 'POST', payload, {
+            skipRefresh: true,
+          });
         }}
         onSaveAnswer={async (payload) => {
-          await apiCall('/api/cbt/sessions/autosave', 'POST', payload);
+          await apiCall('/api/cbt/sessions/autosave', 'POST', payload, {
+            skipRefresh: true,
+          });
         }}
         onSubmitExam={async (payload) => {
           return await apiCall('/api/cbt/sessions/submit', 'POST', payload);

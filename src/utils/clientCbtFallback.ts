@@ -52,8 +52,13 @@ export async function safeParseJsonResponse(res: Response): Promise<ParsedHttpRe
   }
 }
 
+let confirmedBackendServer = false;
+
 export function shouldUseClientFallback(parsed: ParsedHttpResponse): boolean {
   if (!parsed.isJson) return true;
+  if (parsed.data?.vercelFallbackRequired === true) {
+    return true;
+  }
   if (
     parsed.status === 404 ||
     parsed.status === 502 ||
@@ -61,21 +66,6 @@ export function shouldUseClientFallback(parsed: ParsedHttpResponse): boolean {
     parsed.status === 504
   ) {
     return true;
-  }
-  if (parsed.data?.vercelFallbackRequired === true) {
-    return true;
-  }
-  if (parsed.status === 500) {
-    const errText = String(parsed.data?.error || '').toLowerCase();
-    if (
-      errText.includes('gagal menginisialisasi sistem database') ||
-      errText.includes('econnrefused') ||
-      errText.includes('enotfound') ||
-      errText.includes('connection terminated') ||
-      errText.includes('database')
-    ) {
-      return true;
-    }
   }
   return false;
 }
@@ -1181,6 +1171,10 @@ export async function executeApiRequest(
       return await runFallbackWithSupabaseSync(url, method, parsedBody);
     }
 
+    if (parsed.isJson && !parsed.data?.vercelFallbackRequired) {
+      confirmedBackendServer = true;
+    }
+
     if (!parsed.ok) {
       const error: any = new Error(
         parsed.data?.error || 'Permintaan gagal diproses.'
@@ -1197,6 +1191,11 @@ export async function executeApiRequest(
       String(err?.message || '').includes('Failed to fetch') ||
       String(err?.message || '').includes('NetworkError')
     ) {
+      if (confirmedBackendServer && method !== 'GET') {
+        throw new Error(
+          'Koneksi ke server database terputus. Perubahan belum tersimpan ke database, silakan periksa jaringan lalu coba lagi.'
+        );
+      }
       return await runFallbackWithSupabaseSync(url, method, parsedBody);
     }
     throw err;

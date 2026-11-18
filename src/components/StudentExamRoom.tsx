@@ -22,6 +22,7 @@ import {
   ExamRecord,
   ExamSessionRecord,
   QuestionRecord,
+  StudentAnswerRecord,
   StudentRecord,
 } from '../types/cbt';
 import { deterministicShuffle } from '../utils/cbtLogic';
@@ -36,6 +37,7 @@ interface StudentExamRoomProps {
   student: StudentRecord;
   questions: QuestionRecord[];
   existingSession?: ExamSessionRecord;
+  existingAnswers?: StudentAnswerRecord[];
   onStartSession: (examId: number, studentId: number) => Promise<ExamSessionRecord>;
   onCaptureSnapshot: (payload: {
     sessionId: number;
@@ -84,6 +86,7 @@ export const StudentExamRoom: React.FC<StudentExamRoomProps> = ({
   student,
   questions,
   existingSession,
+  existingAnswers,
   onStartSession,
   onCaptureSnapshot,
   onReportViolation,
@@ -114,7 +117,9 @@ export const StudentExamRoom: React.FC<StudentExamRoomProps> = ({
     existingSession || null
   );
   const [remainingSeconds, setRemainingSeconds] = useState<number>(
-    (exam.durationMinutes || 60) * 60
+    existingSession?.remainingSeconds && existingSession.remainingSeconds > 0
+      ? existingSession.remainingSeconds
+      : (exam.durationMinutes || 60) * 60
   );
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isOnline, setIsOnline] = useState<boolean>(true);
@@ -122,22 +127,27 @@ export const StudentExamRoom: React.FC<StudentExamRoomProps> = ({
     'Tersimpan Otomatis' | 'Menyimpan...' | 'Tersimpan Lokal (Offline)'
   >('Tersimpan Otomatis');
 
+  const toSnapStatus = (val?: string): 'Belum Diambil' | 'Berhasil' | 'Gagal' =>
+    val === 'Berhasil' || val === 'Gagal' ? val : 'Belum Diambil';
+
   // 3 Automatic Snapshots state
   const [snap1Status, setSnap1Status] = useState<
     'Belum Diambil' | 'Berhasil' | 'Gagal'
-  >('Belum Diambil');
+  >(() => toSnapStatus(existingSession?.snapshot1Status));
   const [snap2Status, setSnap2Status] = useState<
     'Belum Diambil' | 'Berhasil' | 'Gagal'
-  >('Belum Diambil');
+  >(() => toSnapStatus(existingSession?.snapshot2Status));
   const [snap3Status, setSnap3Status] = useState<
     'Belum Diambil' | 'Berhasil' | 'Gagal'
-  >('Belum Diambil');
+  >(() => toSnapStatus(existingSession?.snapshot3Status));
   const [capturedImages, setCapturedImages] = useState<Record<number, string>>(
     {}
   );
 
   // Tiered Violation Warning Banner
-  const [violationCount, setViolationCount] = useState<number>(0);
+  const [violationCount, setViolationCount] = useState<number>(
+    existingSession?.violationCount || 0
+  );
   const [activeWarningBanner, setActiveWarningBanner] = useState<{
     level: 1 | 2 | 3;
     label: string;
@@ -161,8 +171,28 @@ export const StudentExamRoom: React.FC<StudentExamRoomProps> = ({
   }, [questions, exam.randomizeQuestions, exam.randomizeOptions, student.id, exam.id]);
 
   const [currentIndex, setCurrentIndex] = useState<number>(0);
-  const [answersMap, setAnswersMap] = useState<Record<number, string>>({});
-  const [doubtfulMap, setDoubtfulMap] = useState<Record<number, boolean>>({});
+  const [answersMap, setAnswersMap] = useState<Record<number, string>>(() => {
+    const initial: Record<number, string> = {};
+    if (Array.isArray(existingAnswers)) {
+      for (const ans of existingAnswers) {
+        if (ans.answerValue) {
+          initial[ans.questionId] = ans.answerValue;
+        }
+      }
+    }
+    return initial;
+  });
+  const [doubtfulMap, setDoubtfulMap] = useState<Record<number, boolean>>(() => {
+    const initial: Record<number, boolean> = {};
+    if (Array.isArray(existingAnswers)) {
+      for (const ans of existingAnswers) {
+        if (ans.isDoubtful) {
+          initial[ans.questionId] = true;
+        }
+      }
+    }
+    return initial;
+  });
   const [showSubmitConfirm, setShowSubmitConfirm] = useState<boolean>(false);
   const [showLeaveConfirm, setShowLeaveConfirm] = useState<boolean>(false);
   const [submittingExam, setSubmittingExam] = useState<boolean>(false);
@@ -436,14 +466,19 @@ export const StudentExamRoom: React.FC<StudentExamRoomProps> = ({
       startedSession.remainingSeconds || exam.durationMinutes * 60
     );
     setViolationCount(startedSession.violationCount || 0);
+    setSnap1Status(toSnapStatus(startedSession.snapshot1Status));
+    setSnap2Status(toSnapStatus(startedSession.snapshot2Status));
+    setSnap3Status(toSnapStatus(startedSession.snapshot3Status));
     setStage('exam');
 
-    // Immediately take Automatic Snapshot #1 (Saat Memulai Ujian)
-    await performAutomaticSnapshot(
-      1,
-      'Saat Memulai Ujian (Snapshot 1)',
-      startedSession.id
-    );
+    // Immediately take Automatic Snapshot #1 if not yet captured on this session
+    if (startedSession.snapshot1Status !== 'Berhasil') {
+      await performAutomaticSnapshot(
+        1,
+        'Saat Memulai Ujian (Snapshot 1)',
+        startedSession.id
+      );
+    }
   };
 
   // Schedule Automatic Snapshot #2 at a random time during the exam session
@@ -677,6 +712,8 @@ export const StudentExamRoom: React.FC<StudentExamRoomProps> = ({
         answers: formattedAnswers,
         durationUsedMinutes: autoByTimer ? exam.durationMinutes : usedMinutes,
       });
+
+      localStorage.removeItem(`unikma_cbt_offline_${session.id}`);
 
       if (document.fullscreenElement && document.exitFullscreen) {
         await document.exitFullscreen().catch(() => {});
