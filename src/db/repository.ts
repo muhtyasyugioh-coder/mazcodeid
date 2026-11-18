@@ -1047,22 +1047,75 @@ export async function createCourseRecord(data: {
   description?: string;
 }) {
   try {
+    const cleanCode = String(data.code || '').trim();
+    const cleanName = String(data.name || '').trim();
+    if (!cleanCode || !cleanName) {
+      throw new Error('Kode dan Nama Mata Kuliah wajib diisi.');
+    }
+
+    const existingCourses = await db.select().from(courses);
+    const duplicate = existingCourses.find(
+      (c) => c.code.trim().toLowerCase() === cleanCode.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(
+        `Kode Mata Kuliah "${cleanCode}" sudah terdaftar (${duplicate.name}). Gunakan kode yang berbeda.`
+      );
+    }
+
+    let validStudyProgramId: number | null = null;
+    if (Number(data.studyProgramId) > 0) {
+      const spId = Number(data.studyProgramId);
+      const foundProdi = await db
+        .select({ id: studyPrograms.id })
+        .from(studyPrograms)
+        .where(eq(studyPrograms.id, spId));
+      if (foundProdi.length > 0) {
+        validStudyProgramId = spId;
+      }
+    }
+
+    let validLecturerId: number | null = null;
+    if (Number(data.lecturerId) > 0) {
+      const lectId = Number(data.lecturerId);
+      const foundLect = await db
+        .select({ id: lecturers.id })
+        .from(lecturers)
+        .where(eq(lecturers.id, lectId));
+      if (foundLect.length > 0) {
+        validLecturerId = lectId;
+      }
+    }
+
     const res = await db
       .insert(courses)
       .values({
-        code: data.code,
-        name: data.name,
+        code: cleanCode,
+        name: cleanName,
         sks: Number(data.sks) || 3,
         semester: Number(data.semester) || 1,
-        studyProgramId: data.studyProgramId ? Number(data.studyProgramId) : null,
-        lecturerId: data.lecturerId ? Number(data.lecturerId) : null,
-        description: data.description || '',
+        studyProgramId: validStudyProgramId,
+        lecturerId: validLecturerId,
+        description: String(data.description || '').trim(),
       })
       .returning();
     return res[0];
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to create course:', error);
-    throw new Error('Gagal menambahkan mata kuliah.', { cause: error });
+    const msg = String(error?.message || '');
+    if (
+      msg.includes('wajib diisi') ||
+      msg.includes('sudah terdaftar')
+    ) {
+      throw error;
+    }
+    if (error?.code === '23505') {
+      throw new Error(
+        `Kode Mata Kuliah "${String(data.code || '').trim()}" sudah terdaftar.`,
+        { cause: error }
+      );
+    }
+    throw new Error(msg || 'Gagal menambahkan mata kuliah.', { cause: error });
   }
 }
 
@@ -1079,23 +1132,71 @@ export async function updateCourseRecord(
   }
 ) {
   try {
+    const cleanCode = String(data.code || '').trim();
+    const cleanName = String(data.name || '').trim();
+    if (!cleanCode || !cleanName) {
+      throw new Error('Kode dan Nama Mata Kuliah wajib diisi.');
+    }
+
+    const existingCourses = await db.select().from(courses);
+    const duplicate = existingCourses.find(
+      (c) =>
+        c.id !== id && c.code.trim().toLowerCase() === cleanCode.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(
+        `Kode Mata Kuliah "${cleanCode}" sudah digunakan oleh mata kuliah lain (${duplicate.name}).`
+      );
+    }
+
+    let validStudyProgramId: number | null = null;
+    if (Number(data.studyProgramId) > 0) {
+      const spId = Number(data.studyProgramId);
+      const foundProdi = await db
+        .select({ id: studyPrograms.id })
+        .from(studyPrograms)
+        .where(eq(studyPrograms.id, spId));
+      if (foundProdi.length > 0) {
+        validStudyProgramId = spId;
+      }
+    }
+
+    let validLecturerId: number | null = null;
+    if (Number(data.lecturerId) > 0) {
+      const lectId = Number(data.lecturerId);
+      const foundLect = await db
+        .select({ id: lecturers.id })
+        .from(lecturers)
+        .where(eq(lecturers.id, lectId));
+      if (foundLect.length > 0) {
+        validLecturerId = lectId;
+      }
+    }
+
     const res = await db
       .update(courses)
       .set({
-        code: data.code,
-        name: data.name,
+        code: cleanCode,
+        name: cleanName,
         sks: Number(data.sks) || 3,
         semester: Number(data.semester) || 1,
-        studyProgramId: data.studyProgramId ? Number(data.studyProgramId) : null,
-        lecturerId: data.lecturerId ? Number(data.lecturerId) : null,
-        description: data.description || '',
+        studyProgramId: validStudyProgramId,
+        lecturerId: validLecturerId,
+        description: String(data.description || '').trim(),
       })
       .where(eq(courses.id, id))
       .returning();
     return res[0];
-  } catch (error) {
+  } catch (error: any) {
     console.error('Failed to update course:', error);
-    throw new Error('Gagal memperbarui mata kuliah.', { cause: error });
+    const msg = String(error?.message || '');
+    if (
+      msg.includes('wajib diisi') ||
+      msg.includes('sudah digunakan')
+    ) {
+      throw error;
+    }
+    throw new Error(msg || 'Gagal memperbarui mata kuliah.', { cause: error });
   }
 }
 
@@ -2750,7 +2851,31 @@ export async function syncLocalStateToDatabase(
       if (c.id) classIdMap.set(c.id, targetId);
     }
 
-    // 4. Courses
+    // 4. Courses (resolve lecturerId cleanly against DB lecturers)
+    const existingLecturers = await db.select().from(lecturers);
+    const dbLectByNidn = new Map(
+      existingLecturers.map((l) => [l.nidn.trim().toLowerCase(), l.id])
+    );
+    const dbLectByName = new Map(
+      existingLecturers.map((l) => [l.fullName.trim().toLowerCase(), l.id])
+    );
+    const dbLectIdSet = new Set(existingLecturers.map((l) => l.id));
+    const payloadLecturerById = new Map(
+      (payload.lecturers || []).map((l) => [l.id, l])
+    );
+
+    const resolveLecturerId = (rawId?: number | null): number | null => {
+      if (!rawId) return null;
+      const pLect = payloadLecturerById.get(rawId);
+      if (pLect) {
+        const byNidn = dbLectByNidn.get(String(pLect.nidn || '').trim().toLowerCase());
+        if (byNidn) return byNidn;
+        const byName = dbLectByName.get(String(pLect.fullName || '').trim().toLowerCase());
+        if (byName) return byName;
+      }
+      return dbLectIdSet.has(rawId) ? rawId : null;
+    };
+
     const existingCourses = await db.select().from(courses);
     const courseByCode = new Map(
       existingCourses.map((c) => [c.code.trim().toLowerCase(), c.id])
@@ -2773,7 +2898,7 @@ export async function syncLocalStateToDatabase(
             sks: Number(c.sks) || 3,
             semester: Number(c.semester) || 1,
             studyProgramId: mappedProdiId,
-            lecturerId: null,
+            lecturerId: resolveLecturerId(c.lecturerId),
             description: c.description || '',
           })
           .returning();

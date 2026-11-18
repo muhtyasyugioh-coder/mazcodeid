@@ -53,6 +53,11 @@ export async function safeParseJsonResponse(res: Response): Promise<ParsedHttpRe
 }
 
 let confirmedBackendServer = false;
+let lastWriteUsedFallback = false;
+
+export function didLastWriteUseLocalFallback(): boolean {
+  return lastWriteUsedFallback;
+}
 
 export function shouldUseClientFallback(parsed: ParsedHttpResponse): boolean {
   if (!parsed.isJson) return true;
@@ -446,15 +451,28 @@ export function handleClientFallbackRequest(
 
   // 9. Courses (Mata Kuliah)
   if (cleanPath === '/api/cbt/courses' && cleanMethod === 'POST') {
+    const cleanCode = String(body?.code || '').trim();
+    const cleanName = String(body?.name || '').trim();
+    if (!cleanCode || !cleanName) {
+      throw new Error('Kode dan Nama Mata Kuliah wajib diisi.');
+    }
+    const duplicate = state.courses.find(
+      (c) => c.code.trim().toLowerCase() === cleanCode.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(
+        `Kode Mata Kuliah "${cleanCode}" sudah terdaftar (${duplicate.name}).`
+      );
+    }
     const created = {
       id: nextId(state.courses),
-      code: String(body?.code || '').trim(),
-      name: String(body?.name || '').trim(),
+      code: cleanCode,
+      name: cleanName,
       sks: Number(body?.sks) || 3,
       semester: Number(body?.semester) || 1,
-      studyProgramId: body?.studyProgramId ? Number(body.studyProgramId) : null,
-      lecturerId: body?.lecturerId ? Number(body.lecturerId) : null,
-      description: body?.description || '',
+      studyProgramId: Number(body?.studyProgramId) > 0 ? Number(body.studyProgramId) : null,
+      lecturerId: Number(body?.lecturerId) > 0 ? Number(body.lecturerId) : null,
+      description: String(body?.description || '').trim(),
     };
     state.courses.push(created);
     persistState(state);
@@ -1203,6 +1221,7 @@ async function runFallbackWithSupabaseSync(
   await pullStateFromSupabaseRest();
   const result = handleClientFallbackRequest(url, method, parsedBody);
   if (method !== 'GET') {
+    lastWriteUsedFallback = true;
     await pushStateToSupabaseRest(loadFallbackState());
   }
   return result;
@@ -1217,6 +1236,10 @@ export async function executeApiRequest(
     typeof options.body === 'string' && options.body
       ? JSON.parse(options.body)
       : undefined;
+
+  if (method !== 'GET') {
+    lastWriteUsedFallback = false;
+  }
 
   try {
     const fetchOptions: RequestInit =

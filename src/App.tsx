@@ -55,6 +55,7 @@ import {
   executeApiRequest,
   getSavedLocalFallbackState,
   clearSavedLocalFallbackState,
+  didLastWriteUseLocalFallback,
 } from './utils/clientCbtFallback.ts';
 import { auth, googleAuthProvider } from './lib/firebase.ts';
 import { signInWithPopup, signOut } from 'firebase/auth';
@@ -166,6 +167,7 @@ export default function App() {
 
   // 3. Mata Kuliah
   const [editingCourseId, setEditingCourseId] = useState<number | null>(null);
+  const [submittingCourse, setSubmittingCourse] = useState(false);
   const [courseForm, setCourseForm] = useState({
     code: '',
     name: '',
@@ -2644,27 +2646,47 @@ export default function App() {
                     <form
                       onSubmit={async (e) => {
                         e.preventDefault();
-                        if (editingCourseId) {
-                          await apiCall(
-                            `/api/cbt/courses/${editingCourseId}`,
-                            'PUT',
-                            courseForm
-                          );
-                          showToast('Data Mata Kuliah berhasil diperbarui.');
-                        } else {
-                          await apiCall('/api/cbt/courses', 'POST', courseForm);
-                          showToast('Mata Kuliah baru berhasil ditambahkan.');
+                        if (submittingCourse) return;
+                        try {
+                          setSubmittingCourse(true);
+                          setErrorMsg(null);
+                          if (editingCourseId) {
+                            await apiCall(
+                              `/api/cbt/courses/${editingCourseId}`,
+                              'PUT',
+                              courseForm
+                            );
+                            showToast(
+                              didLastWriteUseLocalFallback()
+                                ? 'Perubahan Mata Kuliah disimpan di browser lokal (database server belum terhubung di URL ini).'
+                                : 'Data Mata Kuliah berhasil diperbarui di database.'
+                            );
+                          } else {
+                            await apiCall('/api/cbt/courses', 'POST', courseForm);
+                            showToast(
+                              didLastWriteUseLocalFallback()
+                                ? 'Mata Kuliah disimpan di browser lokal (database server belum terhubung di URL ini).'
+                                : 'Mata Kuliah baru berhasil disimpan ke database.'
+                            );
+                          }
+                          setEditingCourseId(null);
+                          setCourseForm({
+                            code: '',
+                            name: '',
+                            sks: 3,
+                            semester: 1,
+                            studyProgramId: 0,
+                            lecturerId: 0,
+                            description: '',
+                          });
+                        } catch (err: any) {
+                          const msg =
+                            err?.message || 'Gagal menyimpan mata kuliah ke database.';
+                          setErrorMsg(msg);
+                          showToast(msg);
+                        } finally {
+                          setSubmittingCourse(false);
                         }
-                        setEditingCourseId(null);
-                        setCourseForm({
-                          code: '',
-                          name: '',
-                          sks: 3,
-                          semester: 1,
-                          studyProgramId: 0,
-                          lecturerId: 0,
-                          description: '',
-                        });
                       }}
                       className="bg-white border border-[#E2E8F0] rounded-lg p-5 space-y-4"
                     >
@@ -2839,11 +2861,14 @@ export default function App() {
                       </div>
                       <button
                         type="submit"
-                        className="h-10 px-5 w-full sm:w-auto bg-[#F97316] hover:bg-[#EA580C] text-white rounded-md text-xs font-semibold cursor-pointer"
+                        disabled={submittingCourse}
+                        className="h-10 px-5 w-full sm:w-auto bg-[#F97316] hover:bg-[#EA580C] disabled:opacity-60 text-white rounded-md text-xs font-semibold cursor-pointer"
                       >
-                        {editingCourseId
-                          ? 'Simpan Perubahan Mata Kuliah'
-                          : '+ Tambah Mata Kuliah'}
+                        {submittingCourse
+                          ? 'Menyimpan ke Database...'
+                          : editingCourseId
+                            ? 'Simpan Perubahan Mata Kuliah'
+                            : '+ Tambah Mata Kuliah'}
                       </button>
                     </form>
                   )}
@@ -2914,11 +2939,20 @@ export default function App() {
                                       </button>
                                       <button
                                         onClick={async () => {
-                                          await apiCall(
-                                            `/api/cbt/courses/${c.id}`,
-                                            'DELETE'
-                                          );
-                                          showToast('Mata Kuliah berhasil dihapus.');
+                                          try {
+                                            setErrorMsg(null);
+                                            await apiCall(
+                                              `/api/cbt/courses/${c.id}`,
+                                              'DELETE'
+                                            );
+                                            showToast('Mata Kuliah berhasil dihapus.');
+                                          } catch (err: any) {
+                                            const msg =
+                                              err?.message ||
+                                              'Gagal menghapus mata kuliah.';
+                                            setErrorMsg(msg);
+                                            showToast(msg);
+                                          }
                                         }}
                                         className="h-7 px-2.5 bg-red-50 hover:bg-red-100 text-red-700 border border-red-200 rounded text-xs font-semibold cursor-pointer"
                                       >

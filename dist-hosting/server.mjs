@@ -9264,15 +9264,28 @@ function handleClientFallbackRequest(url, method, body, adapter) {
     }
   }
   if (cleanPath === "/api/cbt/courses" && cleanMethod === "POST") {
+    const cleanCode = String(body?.code || "").trim();
+    const cleanName = String(body?.name || "").trim();
+    if (!cleanCode || !cleanName) {
+      throw new Error("Kode dan Nama Mata Kuliah wajib diisi.");
+    }
+    const duplicate = state.courses.find(
+      (c) => c.code.trim().toLowerCase() === cleanCode.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(
+        `Kode Mata Kuliah "${cleanCode}" sudah terdaftar (${duplicate.name}).`
+      );
+    }
     const created = {
       id: nextId(state.courses),
-      code: String(body?.code || "").trim(),
-      name: String(body?.name || "").trim(),
+      code: cleanCode,
+      name: cleanName,
       sks: Number(body?.sks) || 3,
       semester: Number(body?.semester) || 1,
-      studyProgramId: body?.studyProgramId ? Number(body.studyProgramId) : null,
-      lecturerId: body?.lecturerId ? Number(body.lecturerId) : null,
-      description: body?.description || ""
+      studyProgramId: Number(body?.studyProgramId) > 0 ? Number(body.studyProgramId) : null,
+      lecturerId: Number(body?.lecturerId) > 0 ? Number(body.lecturerId) : null,
+      description: String(body?.description || "").trim()
     };
     state.courses.push(created);
     persistState(state);
@@ -10746,36 +10759,110 @@ async function deleteClassRecord(id) {
 }
 async function createCourseRecord(data) {
   try {
+    const cleanCode = String(data.code || "").trim();
+    const cleanName = String(data.name || "").trim();
+    if (!cleanCode || !cleanName) {
+      throw new Error("Kode dan Nama Mata Kuliah wajib diisi.");
+    }
+    const existingCourses = await db.select().from(courses);
+    const duplicate = existingCourses.find(
+      (c) => c.code.trim().toLowerCase() === cleanCode.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(
+        `Kode Mata Kuliah "${cleanCode}" sudah terdaftar (${duplicate.name}). Gunakan kode yang berbeda.`
+      );
+    }
+    let validStudyProgramId = null;
+    if (Number(data.studyProgramId) > 0) {
+      const spId = Number(data.studyProgramId);
+      const foundProdi = await db.select({ id: studyPrograms.id }).from(studyPrograms).where(eq(studyPrograms.id, spId));
+      if (foundProdi.length > 0) {
+        validStudyProgramId = spId;
+      }
+    }
+    let validLecturerId = null;
+    if (Number(data.lecturerId) > 0) {
+      const lectId = Number(data.lecturerId);
+      const foundLect = await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.id, lectId));
+      if (foundLect.length > 0) {
+        validLecturerId = lectId;
+      }
+    }
     const res = await db.insert(courses).values({
-      code: data.code,
-      name: data.name,
+      code: cleanCode,
+      name: cleanName,
       sks: Number(data.sks) || 3,
       semester: Number(data.semester) || 1,
-      studyProgramId: data.studyProgramId ? Number(data.studyProgramId) : null,
-      lecturerId: data.lecturerId ? Number(data.lecturerId) : null,
-      description: data.description || ""
+      studyProgramId: validStudyProgramId,
+      lecturerId: validLecturerId,
+      description: String(data.description || "").trim()
     }).returning();
     return res[0];
   } catch (error) {
     console.error("Failed to create course:", error);
-    throw new Error("Gagal menambahkan mata kuliah.", { cause: error });
+    const msg = String(error?.message || "");
+    if (msg.includes("wajib diisi") || msg.includes("sudah terdaftar")) {
+      throw error;
+    }
+    if (error?.code === "23505") {
+      throw new Error(
+        `Kode Mata Kuliah "${String(data.code || "").trim()}" sudah terdaftar.`,
+        { cause: error }
+      );
+    }
+    throw new Error(msg || "Gagal menambahkan mata kuliah.", { cause: error });
   }
 }
 async function updateCourseRecord(id, data) {
   try {
+    const cleanCode = String(data.code || "").trim();
+    const cleanName = String(data.name || "").trim();
+    if (!cleanCode || !cleanName) {
+      throw new Error("Kode dan Nama Mata Kuliah wajib diisi.");
+    }
+    const existingCourses = await db.select().from(courses);
+    const duplicate = existingCourses.find(
+      (c) => c.id !== id && c.code.trim().toLowerCase() === cleanCode.toLowerCase()
+    );
+    if (duplicate) {
+      throw new Error(
+        `Kode Mata Kuliah "${cleanCode}" sudah digunakan oleh mata kuliah lain (${duplicate.name}).`
+      );
+    }
+    let validStudyProgramId = null;
+    if (Number(data.studyProgramId) > 0) {
+      const spId = Number(data.studyProgramId);
+      const foundProdi = await db.select({ id: studyPrograms.id }).from(studyPrograms).where(eq(studyPrograms.id, spId));
+      if (foundProdi.length > 0) {
+        validStudyProgramId = spId;
+      }
+    }
+    let validLecturerId = null;
+    if (Number(data.lecturerId) > 0) {
+      const lectId = Number(data.lecturerId);
+      const foundLect = await db.select({ id: lecturers.id }).from(lecturers).where(eq(lecturers.id, lectId));
+      if (foundLect.length > 0) {
+        validLecturerId = lectId;
+      }
+    }
     const res = await db.update(courses).set({
-      code: data.code,
-      name: data.name,
+      code: cleanCode,
+      name: cleanName,
       sks: Number(data.sks) || 3,
       semester: Number(data.semester) || 1,
-      studyProgramId: data.studyProgramId ? Number(data.studyProgramId) : null,
-      lecturerId: data.lecturerId ? Number(data.lecturerId) : null,
-      description: data.description || ""
+      studyProgramId: validStudyProgramId,
+      lecturerId: validLecturerId,
+      description: String(data.description || "").trim()
     }).where(eq(courses.id, id)).returning();
     return res[0];
   } catch (error) {
     console.error("Failed to update course:", error);
-    throw new Error("Gagal memperbarui mata kuliah.", { cause: error });
+    const msg = String(error?.message || "");
+    if (msg.includes("wajib diisi") || msg.includes("sudah digunakan")) {
+      throw error;
+    }
+    throw new Error(msg || "Gagal memperbarui mata kuliah.", { cause: error });
   }
 }
 async function deleteCourseRecord(id) {
@@ -11794,6 +11881,28 @@ async function syncLocalStateToDatabase(payload) {
       }
       if (c.id) classIdMap.set(c.id, targetId);
     }
+    const existingLecturers = await db.select().from(lecturers);
+    const dbLectByNidn = new Map(
+      existingLecturers.map((l) => [l.nidn.trim().toLowerCase(), l.id])
+    );
+    const dbLectByName = new Map(
+      existingLecturers.map((l) => [l.fullName.trim().toLowerCase(), l.id])
+    );
+    const dbLectIdSet = new Set(existingLecturers.map((l) => l.id));
+    const payloadLecturerById = new Map(
+      (payload.lecturers || []).map((l) => [l.id, l])
+    );
+    const resolveLecturerId = (rawId) => {
+      if (!rawId) return null;
+      const pLect = payloadLecturerById.get(rawId);
+      if (pLect) {
+        const byNidn = dbLectByNidn.get(String(pLect.nidn || "").trim().toLowerCase());
+        if (byNidn) return byNidn;
+        const byName = dbLectByName.get(String(pLect.fullName || "").trim().toLowerCase());
+        if (byName) return byName;
+      }
+      return dbLectIdSet.has(rawId) ? rawId : null;
+    };
     const existingCourses = await db.select().from(courses);
     const courseByCode = new Map(
       existingCourses.map((c) => [c.code.trim().toLowerCase(), c.id])
@@ -11811,7 +11920,7 @@ async function syncLocalStateToDatabase(payload) {
           sks: Number(c.sks) || 3,
           semester: Number(c.semester) || 1,
           studyProgramId: mappedProdiId,
-          lecturerId: null,
+          lecturerId: resolveLecturerId(c.lecturerId),
           description: c.description || ""
         }).returning();
         targetId = inserted[0].id;
@@ -12379,7 +12488,9 @@ function registerRoutes() {
       broadcastEvent("state:refresh", { entity: "courses" });
       res.json(created);
     } catch (error) {
-      res.status(500).json({ error: error.message || "Gagal menyimpan mata kuliah." });
+      const msg = String(error?.message || "Gagal menyimpan mata kuliah.");
+      const status = msg.includes("wajib diisi") || msg.includes("sudah terdaftar") ? 400 : 500;
+      res.status(status).json({ error: msg });
     }
   });
   app.put(
@@ -12392,7 +12503,9 @@ function registerRoutes() {
         broadcastEvent("state:refresh", { entity: "courses" });
         res.json(updated);
       } catch (error) {
-        res.status(500).json({ error: error.message || "Gagal memperbarui mata kuliah." });
+        const msg = String(error?.message || "Gagal memperbarui mata kuliah.");
+        const status = msg.includes("wajib diisi") || msg.includes("sudah digunakan") ? 400 : 500;
+        res.status(status).json({ error: msg });
       }
     }
   );

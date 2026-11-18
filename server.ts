@@ -464,9 +464,12 @@ function registerRoutes() {
       broadcastEvent('state:refresh', { entity: 'courses' });
       res.json(created);
     } catch (error: any) {
-      res
-        .status(500)
-        .json({ error: error.message || 'Gagal menyimpan mata kuliah.' });
+      const msg = String(error?.message || 'Gagal menyimpan mata kuliah.');
+      const status =
+        msg.includes('wajib diisi') || msg.includes('sudah terdaftar')
+          ? 400
+          : 500;
+      res.status(status).json({ error: msg });
     }
   });
 
@@ -480,9 +483,12 @@ function registerRoutes() {
         broadcastEvent('state:refresh', { entity: 'courses' });
         res.json(updated);
       } catch (error: any) {
-        res
-          .status(500)
-          .json({ error: error.message || 'Gagal memperbarui mata kuliah.' });
+        const msg = String(error?.message || 'Gagal memperbarui mata kuliah.');
+        const status =
+          msg.includes('wajib diisi') || msg.includes('sudah digunakan')
+            ? 400
+            : 500;
+        res.status(status).json({ error: msg });
       }
     }
   );
