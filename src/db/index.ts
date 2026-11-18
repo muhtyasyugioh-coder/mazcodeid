@@ -64,6 +64,7 @@ export function hasDatabaseConfig(): boolean {
 export const createPool = () => {
   if (!global._postgresPool) {
     const connectionString = getConnectionString();
+    const poolMax = process.env.VERCEL ? 2 : 10;
 
     global._postgresPool = connectionString
       ? new Pool({
@@ -73,7 +74,8 @@ export const createPool = () => {
             connectionString.includes('127.0.0.1')
               ? undefined
               : { rejectUnauthorized: false },
-          max: 10,
+          max: poolMax,
+          idleTimeoutMillis: 10000,
           connectionTimeoutMillis: 10000,
         })
       : new Pool({
@@ -82,7 +84,8 @@ export const createPool = () => {
           password: process.env.SQL_PASSWORD || process.env.PGPASSWORD,
           database: process.env.SQL_DB_NAME || process.env.PGDATABASE,
           port: process.env.PGPORT ? Number(process.env.PGPORT) : undefined,
-          max: 10,
+          max: poolMax,
+          idleTimeoutMillis: 10000,
           connectionTimeoutMillis: 10000,
         });
 

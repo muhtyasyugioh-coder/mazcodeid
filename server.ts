@@ -6,7 +6,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as dotenv from 'dotenv';
 import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
-import { hasDatabaseConfig, getConnectionString } from './src/db/index.ts';
+import { hasDatabaseConfig, getConnectionString, pool } from './src/db/index.ts';
 import { handleLocalFileApiRequest } from './src/db/localFileStore.ts';
 import {
   ensureSeeded,
@@ -71,17 +71,39 @@ const uploadsDir = process.env.VERCEL
   : path.resolve(process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadsDir, { maxAge: '1d' }));
 
+// Prevent Vercel Edge/browser caching on dynamic CBT API JSON responses
+app.use('/api', (req, res, next) => {
+  if (!req.path.endsWith('/image')) {
+    res.setHeader(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate'
+    );
+    res.setHeader('Pragma', 'no-cache');
+  }
+  next();
+});
+
 // Lightweight health check without exposing secrets
-app.get('/api/health', (_req, res) => {
+app.get('/api/health', async (_req, res) => {
   const conn = getConnectionString();
-  const mode = hasDatabaseConfig()
+  const configured = hasDatabaseConfig();
+  let dbReachable = false;
+  if (configured) {
+    try {
+      await pool.query('SELECT 1');
+      dbReachable = true;
+    } catch {
+      dbReachable = false;
+    }
+  }
+  const mode = configured
     ? conn?.includes('supabase')
       ? 'supabase'
       : 'postgres'
     : process.env.VERCEL
       ? 'browser-fallback'
       : 'local-file-db';
-  res.json({ ok: true, mode });
+  res.json({ ok: true, mode, dbReachable });
 });
 
 // Automatic database routing:

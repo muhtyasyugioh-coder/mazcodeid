@@ -16,24 +16,12 @@ import * as dotenv from "dotenv";
 // src/lib/firebase-admin.ts
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getAuth } from "firebase-admin/auth";
-
-// firebase-applet-config.json
-var firebase_applet_config_default = {
-  projectId: "googly-overview-0c9s2",
-  appId: "1:824942208128:web:157ee6088f3e90cae7b265",
-  apiKey: "AIzaSyA_aRyL7S7g9ACDqCCDH1gnqMMsihiN8R8",
-  authDomain: "googly-overview-0c9s2.firebaseapp.com",
-  storageBucket: "googly-overview-0c9s2.firebasestorage.app",
-  messagingSenderId: "824942208128",
-  measurementId: "",
-  oAuthClientId: "824942208128-e86mrgegtt7dab8atesftnajss1efarg.apps.googleusercontent.com",
-  recaptchaSiteKey: ""
-};
-
-// src/lib/firebase-admin.ts
+import { createRequire } from "module";
+var require2 = createRequire(import.meta.url);
+var firebaseConfig = require2("../../firebase-applet-config.json");
 if (!getApps().length) {
   initializeApp({
-    projectId: firebase_applet_config_default.projectId
+    projectId: firebaseConfig.projectId
   });
 }
 var adminAuth = getAuth();
@@ -461,10 +449,12 @@ function hasDatabaseConfig() {
 var createPool = () => {
   if (!global._postgresPool) {
     const connectionString = getConnectionString();
+    const poolMax = process.env.VERCEL ? 2 : 10;
     global._postgresPool = connectionString ? new Pool({
       connectionString,
       ssl: connectionString.includes("localhost") || connectionString.includes("127.0.0.1") ? void 0 : { rejectUnauthorized: false },
-      max: 10,
+      max: poolMax,
+      idleTimeoutMillis: 1e4,
       connectionTimeoutMillis: 1e4
     }) : new Pool({
       host: process.env.SQL_HOST || process.env.PGHOST,
@@ -472,7 +462,8 @@ var createPool = () => {
       password: process.env.SQL_PASSWORD || process.env.PGPASSWORD,
       database: process.env.SQL_DB_NAME || process.env.PGDATABASE,
       port: process.env.PGPORT ? Number(process.env.PGPORT) : void 0,
-      max: 10,
+      max: poolMax,
+      idleTimeoutMillis: 1e4,
       connectionTimeoutMillis: 1e4
     });
     global._postgresPool.on("error", (err) => {
@@ -527,6 +518,18 @@ var initialSeedSnapshot_default = {
     }
   ],
   users: [
+    {
+      id: 91,
+      uid: "uid-mahasiswa-1794981355772-395",
+      email: "265920011@student.unikma.ac.id",
+      passwordHash: "265920011",
+      fullName: "MUSTOFA HANJAYA PUTRA",
+      roleId: 3,
+      roleName: "mahasiswa",
+      avatarUrl: "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      isActive: true,
+      createdAt: "2026-11-18T05:55:55.810Z"
+    },
     {
       id: 90,
       uid: "uid-mahasiswa-1794972358456-850",
@@ -2829,6 +2832,19 @@ var initialSeedSnapshot_default = {
       enrollmentYear: 2023,
       avatarUrl: "/src/assets/images/avatar_student_1_1794677775068.jpg",
       createdAt: "2026-11-18T03:25:58.568Z"
+    },
+    {
+      id: 88,
+      userId: 91,
+      nim: "265920011",
+      fullName: "MUSTOFA HANJAYA PUTRA",
+      facultyId: 1,
+      studyProgramId: 1,
+      classId: 1,
+      semester: 1,
+      enrollmentYear: 2026,
+      avatarUrl: "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      createdAt: "2026-11-18T05:55:55.905Z"
     }
   ],
   courses: [
@@ -2866,7 +2882,33 @@ var initialSeedSnapshot_default = {
       createdAt: "2026-11-18T03:47:45.544Z"
     }
   ],
-  exams: [],
+  exams: [
+    {
+      id: 3,
+      code: "CBT UJI COBA",
+      title: "UTS-PTI",
+      courseId: 2,
+      lecturerId: null,
+      classId: null,
+      examType: "UTS",
+      durationMinutes: 60,
+      startTime: "2026-11-18T06:05:06.079Z",
+      endTime: "2026-11-18T07:05:06.079Z",
+      totalQuestions: 50,
+      passingGrade: 70,
+      randomizeQuestions: true,
+      randomizeOptions: true,
+      maxAttempts: 1,
+      requireCamera: true,
+      requireFullscreen: true,
+      snapshotCount: 3,
+      maxViolations: 3,
+      violationAction: "warn_and_flag",
+      status: "Berlangsung",
+      resultsPublished: true,
+      createdAt: "2026-11-18T06:08:07.971Z"
+    }
+  ],
   questions: [
     {
       id: 1,
@@ -8226,14 +8268,45 @@ function loadFallbackState() {
       return initial;
     }
     const parsed = JSON.parse(raw);
+    const snapshot = createInitialFallbackState();
+    let changed = false;
     const hasAdmin = parsed.users?.some(
       (u) => u.email.toLowerCase() === "muhtyasyugi@unikma.ac.id"
     );
     if (!hasAdmin) {
-      parsed.users = [
-        ...parsed.users || [],
-        ...createInitialFallbackState().users
-      ];
+      parsed.users = [...parsed.users || [], ...snapshot.users];
+      changed = true;
+    }
+    const targetRev = 2;
+    if ((parsed._snapshotRevision || 0) < targetRev) {
+      if ((!parsed.exams || parsed.exams.length === 0) && snapshot.exams?.length > 0) {
+        parsed.exams = snapshot.exams;
+      }
+      if (snapshot.students?.length > (parsed.students?.length || 0)) {
+        const existingNims = new Set((parsed.students || []).map((s) => s.nim));
+        const missingStudents = snapshot.students.filter(
+          (s) => !existingNims.has(s.nim)
+        );
+        if (missingStudents.length > 0) {
+          parsed.students = [...parsed.students || [], ...missingStudents];
+        }
+      }
+      if (snapshot.users?.length > (parsed.users?.length || 0)) {
+        const existingEmails = new Set(
+          (parsed.users || []).map((u) => u.email.toLowerCase())
+        );
+        const missingUsers = snapshot.users.filter(
+          (u) => !existingEmails.has(u.email.toLowerCase())
+        );
+        if (missingUsers.length > 0) {
+          parsed.users = [...parsed.users || [], ...missingUsers];
+        }
+      }
+      parsed._snapshotRevision = targetRev;
+      changed = true;
+    }
+    if (changed) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
     }
     return parsed;
   } catch {
@@ -9165,6 +9238,9 @@ function handleLocalFileApiRequest(req, res) {
 import { eq, desc, and, lt, inArray } from "drizzle-orm";
 import fs2 from "fs/promises";
 import path2 from "path";
+import { createRequire as createRequire2 } from "module";
+var require3 = createRequire2(import.meta.url);
+var initialSeedSnapshot = require3("./initialSeedSnapshot.json");
 var SNAPSHOT_UPLOAD_DIR = process.env.VERCEL ? path2.join("/tmp", "uploads", "snapshots") : path2.resolve(process.cwd(), "uploads", "snapshots");
 async function saveSnapshotImageToDisk(rawImageUrl, meta) {
   const parsed = parseDataImageUrl(rawImageUrl);
@@ -9479,7 +9555,7 @@ async function ensureSeeded() {
     }
     const existingSettings = await db.select().from(websiteSettings);
     if (existingSettings.length === 0) {
-      const snapSite = initialSeedSnapshot_default.websiteSettings?.[0];
+      const snapSite = initialSeedSnapshot.websiteSettings?.[0];
       await db.insert(websiteSettings).values({
         siteName: snapSite?.siteName || "MAZCODEID CBT \u2013 ANTI CHEATING EXAM SYSTEM",
         universityName: snapSite?.universityName || "MazCodeID",
@@ -9494,17 +9570,17 @@ async function ensureSeeded() {
       });
     }
     let currentFaculties = await db.select().from(faculties);
-    if (currentFaculties.length === 0 && initialSeedSnapshot_default.faculties?.length > 0) {
+    if (currentFaculties.length === 0 && initialSeedSnapshot.faculties?.length > 0) {
       currentFaculties = await db.insert(faculties).values({
-        code: initialSeedSnapshot_default.faculties[0].code,
-        name: initialSeedSnapshot_default.faculties[0].name,
-        deanName: initialSeedSnapshot_default.faculties[0].deanName
+        code: initialSeedSnapshot.faculties[0].code,
+        name: initialSeedSnapshot.faculties[0].name,
+        deanName: initialSeedSnapshot.faculties[0].deanName
       }).returning();
     }
     const facId = currentFaculties[0]?.id ?? null;
     let currentProdis = await db.select().from(studyPrograms);
-    if (currentProdis.length === 0 && initialSeedSnapshot_default.studyPrograms?.length > 0) {
-      for (const sp of initialSeedSnapshot_default.studyPrograms) {
+    if (currentProdis.length === 0 && initialSeedSnapshot.studyPrograms?.length > 0) {
+      for (const sp of initialSeedSnapshot.studyPrograms) {
         await db.insert(studyPrograms).values({
           code: sp.code,
           name: sp.name,
@@ -9516,7 +9592,7 @@ async function ensureSeeded() {
       currentProdis = await db.select().from(studyPrograms);
     }
     const prodiIdMap = /* @__PURE__ */ new Map();
-    for (const snapSp of initialSeedSnapshot_default.studyPrograms || []) {
+    for (const snapSp of initialSeedSnapshot.studyPrograms || []) {
       const dbSp = currentProdis.find(
         (p) => p.code.toLowerCase() === snapSp.code.toLowerCase()
       );
@@ -9525,8 +9601,8 @@ async function ensureSeeded() {
       }
     }
     const currentClasses = await db.select().from(classes);
-    if (currentClasses.length === 0 && initialSeedSnapshot_default.classes?.length > 0) {
-      for (const cls of initialSeedSnapshot_default.classes) {
+    if (currentClasses.length === 0 && initialSeedSnapshot.classes?.length > 0) {
+      for (const cls of initialSeedSnapshot.classes) {
         await db.insert(classes).values({
           code: cls.code,
           name: cls.name,
@@ -9538,9 +9614,9 @@ async function ensureSeeded() {
       }
     }
     let currentLecturers = await db.select().from(lecturers);
-    if (currentLecturers.length === 0 && initialSeedSnapshot_default.lecturers?.length > 0) {
-      for (const lec of initialSeedSnapshot_default.lecturers) {
-        const snapUser = initialSeedSnapshot_default.users?.find(
+    if (currentLecturers.length === 0 && initialSeedSnapshot.lecturers?.length > 0) {
+      for (const lec of initialSeedSnapshot.lecturers) {
+        const snapUser = initialSeedSnapshot.users?.find(
           (u) => u.id === lec.userId
         );
         if (snapUser) {
@@ -9574,15 +9650,15 @@ async function ensureSeeded() {
       currentLecturers = await db.select().from(lecturers);
     }
     const lecturerIdMap = /* @__PURE__ */ new Map();
-    for (const snapLec of initialSeedSnapshot_default.lecturers || []) {
+    for (const snapLec of initialSeedSnapshot.lecturers || []) {
       const dbLec = currentLecturers.find((l) => l.nidn === snapLec.nidn);
       if (dbLec) {
         lecturerIdMap.set(snapLec.id, dbLec.id);
       }
     }
     const currentCourses = await db.select().from(courses);
-    if (currentCourses.length === 0 && initialSeedSnapshot_default.courses?.length > 0) {
-      for (const crs of initialSeedSnapshot_default.courses) {
+    if (currentCourses.length === 0 && initialSeedSnapshot.courses?.length > 0) {
+      for (const crs of initialSeedSnapshot.courses) {
         await db.insert(courses).values({
           code: crs.code,
           name: crs.name,
@@ -10909,10 +10985,30 @@ var httpServer = createServer(app);
 app.use(express.json({ limit: "20mb" }));
 var uploadsDir = process.env.VERCEL ? path3.join("/tmp", "uploads") : path3.resolve(process.cwd(), "uploads");
 app.use("/uploads", express.static(uploadsDir, { maxAge: "1d" }));
-app.get("/api/health", (_req, res) => {
+app.use("/api", (req, res, next) => {
+  if (!req.path.endsWith("/image")) {
+    res.setHeader(
+      "Cache-Control",
+      "no-store, no-cache, must-revalidate, proxy-revalidate"
+    );
+    res.setHeader("Pragma", "no-cache");
+  }
+  next();
+});
+app.get("/api/health", async (_req, res) => {
   const conn = getConnectionString();
-  const mode = hasDatabaseConfig() ? conn?.includes("supabase") ? "supabase" : "postgres" : process.env.VERCEL ? "browser-fallback" : "local-file-db";
-  res.json({ ok: true, mode });
+  const configured = hasDatabaseConfig();
+  let dbReachable = false;
+  if (configured) {
+    try {
+      await pool.query("SELECT 1");
+      dbReachable = true;
+    } catch {
+      dbReachable = false;
+    }
+  }
+  const mode = configured ? conn?.includes("supabase") ? "supabase" : "postgres" : process.env.VERCEL ? "browser-fallback" : "local-file-db";
+  res.json({ ok: true, mode, dbReachable });
 });
 app.use("/api", (req, res, next) => {
   if (!hasDatabaseConfig()) {

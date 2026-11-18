@@ -258,13 +258,17 @@ export default function App() {
   }, [fetchPublicWebsiteSettings]);
 
   const fetchState = useCallback(
-    async (tokenOverride?: string) => {
+    async (tokenOverride?: string, options?: { silent?: boolean }) => {
       const token = tokenOverride || authToken;
       if (!token) return;
+      const silent = Boolean(options?.silent);
       try {
-        setLoading(true);
+        if (!silent) {
+          setLoading(true);
+        }
         const data: CbtSystemState = await executeApiRequest('/api/cbt/state', {
           headers: { Authorization: `Bearer ${token}` },
+          cache: 'no-store',
         });
         setState(data);
         if (data.websiteSettings && data.websiteSettings.length > 0) {
@@ -295,9 +299,13 @@ export default function App() {
           setAuthToken(null);
           setCurrentUser(null);
         }
-        setErrorMsg(err.message || 'Gagal memuat state sistem CBT');
+        if (!silent) {
+          setErrorMsg(err.message || 'Gagal memuat state sistem CBT');
+        }
       } finally {
-        setLoading(false);
+        if (!silent) {
+          setLoading(false);
+        }
       }
     },
     [authToken, editingWebsiteId]
@@ -308,6 +316,26 @@ export default function App() {
       fetchState(authToken);
     }
   }, [authToken, fetchState]);
+
+  // Periodic background sync (essential on Vercel serverless where WebSocket is unavailable)
+  useEffect(() => {
+    if (!authToken || activeExamSession) return;
+    const intervalId = window.setInterval(() => {
+      fetchState(authToken, { silent: true });
+    }, 15000);
+    const handleVisibilityOrFocus = () => {
+      if (document.visibilityState === 'visible') {
+        fetchState(authToken, { silent: true });
+      }
+    };
+    window.addEventListener('focus', handleVisibilityOrFocus);
+    document.addEventListener('visibilitychange', handleVisibilityOrFocus);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener('focus', handleVisibilityOrFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+    };
+  }, [authToken, activeExamSession, fetchState]);
 
   // Support deterministic ?autostart=1 for automated testing using real Admin credentials
   useEffect(() => {

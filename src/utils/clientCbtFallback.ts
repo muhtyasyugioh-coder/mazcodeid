@@ -95,16 +95,53 @@ function loadFallbackState(): CbtSystemState {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
       return initial;
     }
-    const parsed = JSON.parse(raw) as CbtSystemState;
+    const parsed = JSON.parse(raw) as CbtSystemState & {
+      _snapshotRevision?: number;
+    };
+    const snapshot = createInitialFallbackState();
+    let changed = false;
+
     // Ensure super admin always exists
     const hasAdmin = parsed.users?.some(
       (u) => u.email.toLowerCase() === 'muhtyasyugi@unikma.ac.id'
     );
     if (!hasAdmin) {
-      parsed.users = [
-        ...(parsed.users || []),
-        ...createInitialFallbackState().users,
-      ];
+      parsed.users = [...(parsed.users || []), ...snapshot.users];
+      changed = true;
+    }
+
+    // Sync newly published snapshot exams/students once if local fallback was empty
+    const targetRev = 2;
+    if ((parsed._snapshotRevision || 0) < targetRev) {
+      if ((!parsed.exams || parsed.exams.length === 0) && snapshot.exams?.length > 0) {
+        parsed.exams = snapshot.exams;
+      }
+      if (snapshot.students?.length > (parsed.students?.length || 0)) {
+        const existingNims = new Set((parsed.students || []).map((s) => s.nim));
+        const missingStudents = snapshot.students.filter(
+          (s) => !existingNims.has(s.nim)
+        );
+        if (missingStudents.length > 0) {
+          parsed.students = [...(parsed.students || []), ...missingStudents];
+        }
+      }
+      if (snapshot.users?.length > (parsed.users?.length || 0)) {
+        const existingEmails = new Set(
+          (parsed.users || []).map((u) => u.email.toLowerCase())
+        );
+        const missingUsers = snapshot.users.filter(
+          (u) => !existingEmails.has(u.email.toLowerCase())
+        );
+        if (missingUsers.length > 0) {
+          parsed.users = [...(parsed.users || []), ...missingUsers];
+        }
+      }
+      parsed._snapshotRevision = targetRev;
+      changed = true;
+    }
+
+    if (changed) {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed));
     }
     return parsed;
   } catch {
@@ -1135,7 +1172,9 @@ export async function executeApiRequest(
       : undefined;
 
   try {
-    const res = await fetch(url, options);
+    const fetchOptions: RequestInit =
+      method === 'GET' ? { cache: 'no-store', ...options } : options;
+    const res = await fetch(url, fetchOptions);
     const parsed = await safeParseJsonResponse(res);
 
     if (shouldUseClientFallback(parsed)) {

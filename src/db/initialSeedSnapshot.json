@@ -37,6 +37,18 @@
   ],
   "users": [
     {
+      "id": 91,
+      "uid": "uid-mahasiswa-1794981355772-395",
+      "email": "265920011@student.unikma.ac.id",
+      "passwordHash": "265920011",
+      "fullName": "MUSTOFA HANJAYA PUTRA",
+      "roleId": 3,
+      "roleName": "mahasiswa",
+      "avatarUrl": "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      "isActive": true,
+      "createdAt": "2026-11-18T05:55:55.810Z"
+    },
+    {
       "id": 90,
       "uid": "uid-mahasiswa-1794972358456-850",
       "email": "235720036@student.unikma.ac.id",
@@ -2338,6 +2350,19 @@
       "enrollmentYear": 2023,
       "avatarUrl": "/src/assets/images/avatar_student_1_1794677775068.jpg",
       "createdAt": "2026-11-18T03:25:58.568Z"
+    },
+    {
+      "id": 88,
+      "userId": 91,
+      "nim": "265920011",
+      "fullName": "MUSTOFA HANJAYA PUTRA",
+      "facultyId": 1,
+      "studyProgramId": 1,
+      "classId": 1,
+      "semester": 1,
+      "enrollmentYear": 2026,
+      "avatarUrl": "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      "createdAt": "2026-11-18T05:55:55.905Z"
     }
   ],
   "courses": [
@@ -2375,7 +2400,33 @@
       "createdAt": "2026-11-18T03:47:45.544Z"
     }
   ],
-  "exams": [],
+  "exams": [
+    {
+      "id": 3,
+      "code": "CBT UJI COBA",
+      "title": "UTS-PTI",
+      "courseId": 2,
+      "lecturerId": null,
+      "classId": null,
+      "examType": "UTS",
+      "durationMinutes": 60,
+      "startTime": "2026-11-18T06:05:06.079Z",
+      "endTime": "2026-11-18T07:05:06.079Z",
+      "totalQuestions": 50,
+      "passingGrade": 70,
+      "randomizeQuestions": true,
+      "randomizeOptions": true,
+      "maxAttempts": 1,
+      "requireCamera": true,
+      "requireFullscreen": true,
+      "snapshotCount": 3,
+      "maxViolations": 3,
+      "violationAction": "warn_and_flag",
+      "status": "Berlangsung",
+      "resultsPublished": true,
+      "createdAt": "2026-11-18T06:08:07.971Z"
+    }
+  ],
   "questions": [
     {
       "id": 1,

@@ -1,8 +1,12 @@
 import { eq, desc, and, lt, inArray } from 'drizzle-orm';
 import fs from 'fs/promises';
 import path from 'path';
+import { createRequire } from 'module';
+import type { CbtSystemState } from '../types/cbt.ts';
 import { db, pool } from './index.ts';
-import initialSeedSnapshot from './initialSeedSnapshot.json';
+
+const require = createRequire(import.meta.url);
+const initialSeedSnapshot = require('./initialSeedSnapshot.json') as CbtSystemState;
 import {
   websiteSettings,
   roles,
