@@ -42,21 +42,10 @@ export const SNAPSHOT_UPLOAD_DIR = process.env.VERCEL
 
 async function saveSnapshotImageToDisk(
   rawImageUrl: string,
-  meta: { examId: number; sessionId: number; sequenceNumber: number }
+  _meta: { examId: number; sessionId: number; sequenceNumber: number }
 ): Promise<string> {
-  const parsed = parseDataImageUrl(rawImageUrl);
-  if (!parsed) {
-    return rawImageUrl || DEFAULT_STUDENT_IMG;
-  }
-  try {
-    await fs.mkdir(SNAPSHOT_UPLOAD_DIR, { recursive: true });
-    const fileName = `snap_${meta.examId}_${meta.sessionId}_seq${meta.sequenceNumber}_${Date.now()}.${parsed.extension}`;
-    const fullPath = path.join(SNAPSHOT_UPLOAD_DIR, fileName);
-    await fs.writeFile(fullPath, Buffer.from(parsed.base64Data, 'base64'));
-    return `/uploads/snapshots/${fileName}`;
-  } catch {
-    return rawImageUrl;
-  }
+  // Simpan langsung data URL terkompresi di PostgreSQL agar snapshot dapat diakses lintas device & serverless Vercel
+  return (rawImageUrl || '').trim() || DEFAULT_STUDENT_IMG;
 }
 
 async function removeSnapshotFileFromDisk(storedUrl: string) {
@@ -2340,9 +2329,11 @@ export async function recordViolationEvent(data: {
         violationCount: nextCount,
         warningLevel: warning.level,
         status:
-          data.cameraStatus === 'Terputus'
-            ? 'Kamera Terputus'
-            : 'Terindikasi Pelanggaran',
+          currentSession?.status === 'Selesai'
+            ? 'Selesai'
+            : data.cameraStatus === 'Terputus'
+              ? 'Kamera Terputus'
+              : 'Terindikasi Pelanggaran',
         cameraStatus:
           data.cameraStatus || currentSession?.cameraStatus || 'Aktif',
         fullscreenStatus:
@@ -2643,5 +2634,453 @@ export async function verifyViolationRecord(data: {
   } catch (error) {
     console.error('Failed to verify violation:', error);
     throw new Error('Gagal memverifikasi log pelanggaran.', { cause: error });
+  }
+}
+
+// ============================================================================
+// SYNC LOCAL / BACKUP JSON DATA TO DATABASE (IDEMPOTENT MERGE)
+// ============================================================================
+export async function syncLocalStateToDatabase(
+  payload: Partial<CbtSystemState>
+) {
+  await ensureSeeded();
+  const synced = {
+    faculties: 0,
+    studyPrograms: 0,
+    classes: 0,
+    courses: 0,
+    students: 0,
+    questions: 0,
+    exams: 0,
+    sessions: 0,
+    answers: 0,
+    results: 0,
+    websiteSettings: 0,
+  };
+
+  try {
+    // 1. Faculties
+    const existingFaculties = await db.select().from(faculties);
+    const facultyByCode = new Map(
+      existingFaculties.map((f) => [f.code.trim().toLowerCase(), f.id])
+    );
+    const facultyIdMap = new Map<number, number>();
+    for (const f of payload.faculties || []) {
+      const key = String(f.code || '').trim().toLowerCase();
+      if (!key) continue;
+      let targetId = facultyByCode.get(key);
+      if (!targetId) {
+        const inserted = await db
+          .insert(faculties)
+          .values({
+            code: f.code.trim(),
+            name: f.name || f.code.trim(),
+            deanName: f.deanName || '-',
+          })
+          .returning();
+        targetId = inserted[0].id;
+        facultyByCode.set(key, targetId);
+        synced.faculties += 1;
+      }
+      if (f.id) facultyIdMap.set(f.id, targetId);
+    }
+
+    // 2. Study Programs
+    const existingProdis = await db.select().from(studyPrograms);
+    const prodiByCode = new Map(
+      existingProdis.map((p) => [p.code.trim().toLowerCase(), p.id])
+    );
+    const prodiIdMap = new Map<number, number>();
+    for (const p of payload.studyPrograms || []) {
+      const key = String(p.code || '').trim().toLowerCase();
+      if (!key) continue;
+      let targetId = prodiByCode.get(key);
+      if (!targetId) {
+        const mappedFacId =
+          p.facultyId && facultyIdMap.has(p.facultyId)
+            ? facultyIdMap.get(p.facultyId)!
+            : existingFaculties[0]?.id ?? null;
+        const inserted = await db
+          .insert(studyPrograms)
+          .values({
+            code: p.code.trim(),
+            name: p.name || p.code.trim(),
+            degree: p.degree || 'S1',
+            facultyId: mappedFacId,
+            headName: p.headName || '-',
+          })
+          .returning();
+        targetId = inserted[0].id;
+        prodiByCode.set(key, targetId);
+        synced.studyPrograms += 1;
+      }
+      if (p.id) prodiIdMap.set(p.id, targetId);
+    }
+
+    // 3. Classes
+    const existingClasses = await db.select().from(classes);
+    const classByCode = new Map(
+      existingClasses.map((c) => [c.code.trim().toLowerCase(), c.id])
+    );
+    const classIdMap = new Map<number, number>();
+    for (const c of payload.classes || []) {
+      const key = String(c.code || '').trim().toLowerCase();
+      if (!key) continue;
+      let targetId = classByCode.get(key);
+      if (!targetId) {
+        const mappedProdiId =
+          c.studyProgramId && prodiIdMap.has(c.studyProgramId)
+            ? prodiIdMap.get(c.studyProgramId)!
+            : null;
+        const inserted = await db
+          .insert(classes)
+          .values({
+            code: c.code.trim(),
+            name: c.name || c.code.trim(),
+            semester: Number(c.semester) || 1,
+            academicYear: c.academicYear || '2026/2027 Ganjil',
+            studyProgramId: mappedProdiId,
+            capacity: Number(c.capacity) || 40,
+          })
+          .returning();
+        targetId = inserted[0].id;
+        classByCode.set(key, targetId);
+        synced.classes += 1;
+      }
+      if (c.id) classIdMap.set(c.id, targetId);
+    }
+
+    // 4. Courses
+    const existingCourses = await db.select().from(courses);
+    const courseByCode = new Map(
+      existingCourses.map((c) => [c.code.trim().toLowerCase(), c.id])
+    );
+    const courseIdMap = new Map<number, number>();
+    for (const c of payload.courses || []) {
+      const key = String(c.code || '').trim().toLowerCase();
+      if (!key) continue;
+      let targetId = courseByCode.get(key);
+      if (!targetId) {
+        const mappedProdiId =
+          c.studyProgramId && prodiIdMap.has(c.studyProgramId)
+            ? prodiIdMap.get(c.studyProgramId)!
+            : null;
+        const inserted = await db
+          .insert(courses)
+          .values({
+            code: c.code.trim(),
+            name: c.name || c.code.trim(),
+            sks: Number(c.sks) || 3,
+            semester: Number(c.semester) || 1,
+            studyProgramId: mappedProdiId,
+            lecturerId: null,
+            description: c.description || '',
+          })
+          .returning();
+        targetId = inserted[0].id;
+        courseByCode.set(key, targetId);
+        synced.courses += 1;
+      }
+      if (c.id) courseIdMap.set(c.id, targetId);
+    }
+
+    // 5. Students (+ User accounts)
+    const existingStudents = await db.select().from(students);
+    const existingUsers = await db.select().from(users);
+    const allRoles = await db.select().from(roles);
+    const studentRole =
+      allRoles.find((r) => r.name === 'mahasiswa') || allRoles[0];
+    const studentByNim = new Map(
+      existingStudents.map((s) => [s.nim.trim().toLowerCase(), s.id])
+    );
+    const userByEmail = new Map(
+      existingUsers.map((u) => [u.email.trim().toLowerCase(), u])
+    );
+    const studentIdMap = new Map<number, number>();
+
+    for (const st of payload.students || []) {
+      const cleanNim = String(st.nim || '').trim();
+      if (!cleanNim) continue;
+      const key = cleanNim.toLowerCase();
+      let targetStudentId = studentByNim.get(key);
+      if (!targetStudentId) {
+        const linkedPayloadUser = (payload.users || []).find(
+          (u) => u.id === st.userId
+        );
+        const sanitizedSlug =
+          cleanNim.toLowerCase().replace(/[^a-z0-9._-]/g, '') ||
+          `${Date.now()}`;
+        let email = (
+          linkedPayloadUser?.email ||
+          (st as { email?: string }).email ||
+          `${sanitizedSlug}@student.unikma.ac.id`
+        )
+          .trim()
+          .toLowerCase();
+        let targetUser = userByEmail.get(email);
+        if (!targetUser) {
+          const insertedUsers = await db
+            .insert(users)
+            .values({
+              uid:
+                linkedPayloadUser?.uid ||
+                `uid-sync-${sanitizedSlug}-${Date.now()}`,
+              email,
+              passwordHash: linkedPayloadUser?.passwordHash || cleanNim,
+              fullName: st.fullName.trim(),
+              roleId: studentRole.id,
+              roleName: 'mahasiswa',
+              avatarUrl: st.avatarUrl || DEFAULT_STUDENT_IMG,
+              isActive: linkedPayloadUser?.isActive ?? true,
+            })
+            .returning();
+          targetUser = insertedUsers[0];
+          userByEmail.set(email, targetUser);
+        }
+        const insertedStudent = await db
+          .insert(students)
+          .values({
+            userId: targetUser.id,
+            nim: cleanNim,
+            fullName: st.fullName.trim(),
+            facultyId:
+              st.facultyId && facultyIdMap.has(st.facultyId)
+                ? facultyIdMap.get(st.facultyId)!
+                : null,
+            studyProgramId:
+              st.studyProgramId && prodiIdMap.has(st.studyProgramId)
+                ? prodiIdMap.get(st.studyProgramId)!
+                : null,
+            classId:
+              st.classId && classIdMap.has(st.classId)
+                ? classIdMap.get(st.classId)!
+                : null,
+            semester: Number(st.semester) || 1,
+            enrollmentYear: Number(st.enrollmentYear) || 2026,
+            avatarUrl: st.avatarUrl || DEFAULT_STUDENT_IMG,
+          })
+          .returning();
+        targetStudentId = insertedStudent[0].id;
+        studentByNim.set(key, targetStudentId);
+        synced.students += 1;
+      }
+      if (st.id) studentIdMap.set(st.id, targetStudentId);
+    }
+
+    // 6. Exams
+    const existingExams = await db.select().from(exams);
+    const examByCode = new Map(
+      existingExams.map((e) => [e.code.trim().toLowerCase(), e.id])
+    );
+    const examIdMap = new Map<number, number>();
+    for (const ex of payload.exams || []) {
+      const cleanCode = String(ex.code || '').trim();
+      if (!cleanCode) continue;
+      const key = cleanCode.toLowerCase();
+      let targetExamId = examByCode.get(key);
+      if (!targetExamId) {
+        const mappedCourseId =
+          ex.courseId && courseIdMap.has(ex.courseId)
+            ? courseIdMap.get(ex.courseId)!
+            : null;
+        const mappedClassId =
+          ex.classId && classIdMap.has(ex.classId)
+            ? classIdMap.get(ex.classId)!
+            : null;
+        const createdExam = await createExamRecord({
+          code: cleanCode,
+          title: ex.title || cleanCode,
+          courseId: mappedCourseId,
+          lecturerId: null,
+          classId: mappedClassId,
+          examType: ex.examType || 'UTS',
+          durationMinutes: ex.durationMinutes || 60,
+          startTime: ex.startTime,
+          endTime: ex.endTime,
+          totalQuestions: ex.totalQuestions || 20,
+          passingGrade: ex.passingGrade || 70,
+          randomizeQuestions: ex.randomizeQuestions ?? true,
+          randomizeOptions: ex.randomizeOptions ?? true,
+          maxAttempts: ex.maxAttempts || 1,
+          requireCamera: ex.requireCamera ?? true,
+          requireFullscreen: ex.requireFullscreen ?? true,
+          snapshotCount: ex.snapshotCount || 3,
+          maxViolations: ex.maxViolations || 3,
+          violationAction: ex.violationAction || 'warn_and_flag',
+          status: ex.status || 'Berlangsung',
+        });
+        targetExamId = createdExam.id;
+        examByCode.set(key, targetExamId);
+        synced.exams += 1;
+      }
+      if (ex.id) examIdMap.set(ex.id, targetExamId);
+    }
+
+    // 7. Questions (+ options)
+    const existingQuestions = await db.select().from(examQuestions);
+    const questionKeySet = new Set(
+      existingQuestions.map(
+        (q) =>
+          `${q.courseId || 0}::${q.questionText.trim().toLowerCase()}`
+      )
+    );
+    const questionIdMap = new Map<number, number>();
+    for (const q of existingQuestions) {
+      questionIdMap.set(q.id, q.id);
+    }
+
+    const questionsToInsert: Array<{
+      sourceId?: number;
+      courseId: number | null;
+      examId: number | null;
+      questionType: string;
+      difficulty: string;
+      questionText: string;
+      mediaType: string;
+      mediaContent: string;
+      weight: number;
+      correctAnswerKey: string;
+      explanation: string;
+      options: Array<{
+        optionLabel: string;
+        optionText: string;
+        isCorrect: boolean;
+      }>;
+    }> = [];
+
+    for (const q of payload.questions || []) {
+      const cleanText = String(q.questionText || '').trim();
+      if (!cleanText) continue;
+      const mappedCourseId =
+        q.courseId && courseIdMap.has(q.courseId)
+          ? courseIdMap.get(q.courseId)!
+          : null;
+      const mappedExamId =
+        q.examId && examIdMap.has(q.examId) ? examIdMap.get(q.examId)! : null;
+      const qKey = `${mappedCourseId || 0}::${cleanText.toLowerCase()}`;
+      if (questionKeySet.has(qKey)) {
+        const matchedExisting = existingQuestions.find(
+          (eqRow) =>
+            `${eqRow.courseId || 0}::${eqRow.questionText.trim().toLowerCase()}` ===
+            qKey
+        );
+        if (matchedExisting && q.id) {
+          questionIdMap.set(q.id, matchedExisting.id);
+        }
+        continue;
+      }
+      questionKeySet.add(qKey);
+      questionsToInsert.push({
+        sourceId: q.id,
+        courseId: mappedCourseId,
+        examId: mappedExamId,
+        questionType: q.questionType || 'pilihan_ganda',
+        difficulty: q.difficulty || 'Sedang',
+        questionText: cleanText,
+        mediaType: q.mediaType || 'none',
+        mediaContent: q.mediaContent || '',
+        weight: Number(q.weight) || 2,
+        correctAnswerKey: q.correctAnswerKey || 'A',
+        explanation: q.explanation || '',
+        options: (q.options || []).map((o) => ({
+          optionLabel: o.optionLabel,
+          optionText: o.optionText,
+          isCorrect: Boolean(o.isCorrect),
+        })),
+      });
+    }
+
+    if (questionsToInsert.length > 0) {
+      const insertedQs = await importQuestionRecords(questionsToInsert);
+      synced.questions = insertedQs.length;
+      insertedQs.forEach((insertedQ, idx) => {
+        const srcId = questionsToInsert[idx]?.sourceId;
+        if (srcId) {
+          questionIdMap.set(srcId, insertedQ.id);
+        }
+      });
+    }
+
+    // 8. Exam Sessions, Answers & Results (for any local session not yet in DB)
+    const existingSessions = await db.select().from(examSessions);
+    const sessionKeyMap = new Map(
+      existingSessions.map((s) => [`${s.examId}:${s.studentId}`, s.id])
+    );
+    const sessionIdMap = new Map<number, number>();
+    for (const s of payload.sessions || []) {
+      const mappedExamId = examIdMap.get(s.examId) || s.examId;
+      const mappedStudentId = studentIdMap.get(s.studentId) || s.studentId;
+      if (!mappedExamId || !mappedStudentId) continue;
+      const pairKey = `${mappedExamId}:${mappedStudentId}`;
+      let targetSessionId = sessionKeyMap.get(pairKey);
+      if (!targetSessionId) {
+        const insertedSess = await db
+          .insert(examSessions)
+          .values({
+            examId: mappedExamId,
+            studentId: mappedStudentId,
+            status: s.status || 'Selesai',
+            cameraStatus: s.cameraStatus || 'Aktif',
+            connectionStatus: s.connectionStatus || 'Online',
+            fullscreenStatus: Boolean(s.fullscreenStatus ?? true),
+            snapshot1Status: s.snapshot1Status || 'Belum Diambil',
+            snapshot2Status: s.snapshot2Status || 'Belum Diambil',
+            snapshot3Status: s.snapshot3Status || 'Belum Diambil',
+            violationCount: Number(s.violationCount) || 0,
+            warningLevel: Number(s.warningLevel) || 0,
+            remainingSeconds: Number(s.remainingSeconds) || 0,
+            finishedAt: s.finishedAt ? new Date(s.finishedAt) : null,
+          })
+          .returning();
+        targetSessionId = insertedSess[0].id;
+        sessionKeyMap.set(pairKey, targetSessionId);
+        synced.sessions += 1;
+      }
+      if (s.id) sessionIdMap.set(s.id, targetSessionId);
+    }
+
+    for (const r of payload.results || []) {
+      const mappedExamId = examIdMap.get(r.examId) || r.examId;
+      const mappedStudentId = studentIdMap.get(r.studentId) || r.studentId;
+      const mappedSessionId =
+        sessionIdMap.get(r.sessionId) ||
+        sessionKeyMap.get(`${mappedExamId}:${mappedStudentId}`);
+      if (!mappedSessionId || !mappedExamId || !mappedStudentId) continue;
+      const existingRes = await db
+        .select()
+        .from(examResults)
+        .where(eq(examResults.sessionId, mappedSessionId));
+      if (existingRes.length === 0) {
+        await db.insert(examResults).values({
+          sessionId: mappedSessionId,
+          examId: mappedExamId,
+          studentId: mappedStudentId,
+          nim: r.nim || '-',
+          studentName: r.studentName || 'Mahasiswa',
+          studyProgramName: r.studyProgramName || '-',
+          courseName: r.courseName || '-',
+          correctCount: Number(r.correctCount) || 0,
+          wrongCount: Number(r.wrongCount) || 0,
+          emptyCount: Number(r.emptyCount) || 0,
+          objectiveScore: Number(r.objectiveScore) || 0,
+          essayScore: Number(r.essayScore) || 0,
+          finalScore: Number(r.finalScore) || 0,
+          gradeLetter: r.gradeLetter || 'E',
+          durationUsedMinutes: Number(r.durationUsedMinutes) || 1,
+          violationCount: Number(r.violationCount) || 0,
+          verificationStatus: r.verificationStatus || 'Terverifikasi Aman',
+          isPublished: Boolean(r.isPublished ?? true),
+        });
+        synced.results += 1;
+      }
+    }
+
+    return { synced };
+  } catch (error: any) {
+    console.error('Failed to sync local state to database:', error);
+    throw new Error(
+      error?.message || 'Gagal menyinkronkan data lokal ke database.',
+      { cause: error }
+    );
   }
 }

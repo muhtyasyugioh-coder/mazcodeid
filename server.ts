@@ -53,6 +53,7 @@ import {
   finalizeExamSubmission,
   updateEssayScoreAndVerifyResult,
   verifyViolationRecord,
+  syncLocalStateToDatabase,
 } from './src/db/repository.ts';
 
 dotenv.config();
@@ -248,6 +249,23 @@ function registerRoutes() {
       res.status(500).json({ error: error.message || 'Gagal memuat data CBT.' });
     }
   });
+
+  // Sync local browser state / JSON backup into active PostgreSQL/Supabase DB
+  app.post(
+    '/api/cbt/sync-local',
+    requireAuth,
+    async (req: AuthRequest, res) => {
+      try {
+        const result = await syncLocalStateToDatabase(req.body || {});
+        broadcastEvent('state:refresh', { entity: 'sync' });
+        res.json(result);
+      } catch (error: any) {
+        res.status(500).json({
+          error: error.message || 'Gagal menyinkronkan data lokal ke database.',
+        });
+      }
+    }
+  );
 
   // CRUD Website Settings (Foto, Nama Website, Tagline, Universitas, dll)
   app.post(
@@ -765,11 +783,14 @@ function registerRoutes() {
       }
       res.setHeader('Cache-Control', 'public, max-age=86400');
       if (imgData.filePath) {
-        return res.sendFile(imgData.filePath, (err) => {
-          if (err && !res.headersSent) {
-            res.status(404).json({ error: 'File gambar snapshot tidak ditemukan.' });
-          }
-        });
+        if (fs.existsSync(imgData.filePath)) {
+          return res.sendFile(imgData.filePath, (err) => {
+            if (err && !res.headersSent) {
+              res.redirect('/src/assets/images/avatar_student_1_1794677775068.jpg');
+            }
+          });
+        }
+        return res.redirect('/src/assets/images/avatar_student_1_1794677775068.jpg');
       }
       if (imgData.buffer && imgData.mimeType) {
         res.setHeader('Content-Type', imgData.mimeType);

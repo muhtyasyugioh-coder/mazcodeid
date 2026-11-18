@@ -51,7 +51,11 @@ import { QuestionBankManager } from './components/QuestionBankManager.tsx';
 import { MonitoringDashboard } from './components/MonitoringDashboard.tsx';
 import { StudentExamRoom } from './components/StudentExamRoom.tsx';
 import { StudentManager, StudentPayload } from './components/StudentManager.tsx';
-import { executeApiRequest } from './utils/clientCbtFallback.ts';
+import {
+  executeApiRequest,
+  getSavedLocalFallbackState,
+  clearSavedLocalFallbackState,
+} from './utils/clientCbtFallback.ts';
 import { auth, googleAuthProvider } from './lib/firebase.ts';
 import { signInWithPopup, signOut } from 'firebase/auth';
 import campusHeroImg from './assets/images/unikma_campus_hero_1794677775495.jpg';
@@ -316,6 +320,58 @@ export default function App() {
       fetchState(authToken);
     }
   }, [authToken, fetchState]);
+
+  // Auto-sync any unsaved local browser fallback data into PostgreSQL/Supabase when backend DB is active
+  const autoSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!authToken || !currentUser || autoSyncedRef.current) return;
+    if (currentUser.roleName !== 'admin' && currentUser.roleName !== 'dosen') return;
+    const localData = getSavedLocalFallbackState();
+    if (!localData) return;
+
+    let cancelled = false;
+    const syncIfBackendReady = async () => {
+      try {
+        const res = await fetch('/api/health', { cache: 'no-store' });
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok || !contentType.includes('application/json')) return;
+        const info = await res.json();
+        if (!info?.ok || info?.mode === 'browser-fallback' || !info?.dbReachable || cancelled) {
+          return;
+        }
+        autoSyncedRef.current = true;
+        const syncRes = await executeApiRequest('/api/cbt/sync-local', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${authToken}`,
+          },
+          body: JSON.stringify(localData),
+        });
+        clearSavedLocalFallbackState();
+        const s = syncRes?.synced || {};
+        const totalSynced =
+          (s.faculties || 0) +
+          (s.studyPrograms || 0) +
+          (s.classes || 0) +
+          (s.courses || 0) +
+          (s.students || 0) +
+          (s.questions || 0) +
+          (s.exams || 0) +
+          (s.results || 0);
+        if (totalSynced > 0) {
+          await fetchState(authToken, { silent: true });
+          showToast(`${totalSynced} data lokal berhasil disinkronkan ke database.`);
+        }
+      } catch {
+        // Keep local data intact if sync fails so user can retry
+      }
+    };
+    syncIfBackendReady();
+    return () => {
+      cancelled = true;
+    };
+  }, [authToken, currentUser, fetchState]);
 
   // Periodic background sync (essential on Vercel serverless where WebSocket is unavailable)
   useEffect(() => {
@@ -4050,37 +4106,112 @@ export default function App() {
                     </div>
                   </div>
 
-                  {/* Portable JSON Backup Export */}
-                  <div className="bg-white border border-[#E2E8F0] rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  {/* Portable JSON Backup Export, Sync & Restore */}
+                  <div className="bg-white border border-[#E2E8F0] rounded-lg p-5 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                     <div>
                       <h3 className="text-sm font-bold text-[#0F172A]">
-                        Ekspor Cadangan Data Sistem (.json)
+                        Cadangan & Sinkronisasi Data ke Database (.json)
                       </h3>
                       <p className="text-xs text-[#475569] mt-0.5">
-                        Unduh salinan lengkap data mahasiswa, mata kuliah, soal, jadwal ujian, dan hasil evaluasi dalam satu file JSON.
+                        Unduh salinan lengkap data sistem, sinkronkan data lokal browser ke database, atau impor file cadangan JSON dari perangkat lain.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const blob = new Blob([JSON.stringify(state, null, 2)], {
-                          type: 'application/json',
-                        });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = `Backup_MazCodeID_CBT_${new Date().toISOString().slice(0, 10)}.json`;
-                        document.body.appendChild(a);
-                        a.click();
-                        document.body.removeChild(a);
-                        URL.revokeObjectURL(url);
-                        showToast('Cadangan data JSON berhasil diunduh.');
-                      }}
-                      className="h-9 px-4 bg-[#0F172A] hover:bg-[#1E293B] text-white rounded-md text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      Download Backup (.json)
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const localData = getSavedLocalFallbackState();
+                          if (!localData) {
+                            showToast('Tidak ada data lokal browser yang tertunda untuk disinkronkan.');
+                            return;
+                          }
+                          try {
+                            const res = await apiCall('/api/cbt/sync-local', 'POST', localData);
+                            clearSavedLocalFallbackState();
+                            const s = res?.synced || {};
+                            const total =
+                              (s.faculties || 0) +
+                              (s.studyPrograms || 0) +
+                              (s.classes || 0) +
+                              (s.courses || 0) +
+                              (s.students || 0) +
+                              (s.questions || 0) +
+                              (s.exams || 0) +
+                              (s.results || 0);
+                            showToast(
+                              total > 0
+                                ? `Sinkronisasi berhasil: ${total} item baru dikirim ke database.`
+                                : 'Semua data lokal sudah sama dengan database.'
+                            );
+                          } catch (err: any) {
+                            showToast(err?.message || 'Gagal menyinkronkan data lokal.');
+                          }
+                        }}
+                        className="h-9 px-3.5 bg-white hover:bg-[#F8FAFC] text-[#0F172A] border border-[#CBD5E1] rounded-md text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-[#F97316]" />
+                        Sinkronkan Data Lokal
+                      </button>
+
+                      <label className="h-9 px-3.5 bg-[#F97316] hover:bg-[#EA580C] text-white rounded-md text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer">
+                        <Upload className="w-3.5 h-3.5" />
+                        Impor & Sinkronkan (.json)
+                        <input
+                          type="file"
+                          accept=".json,application/json"
+                          className="hidden"
+                          onChange={async (e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (!file) return;
+                            try {
+                              const text = await file.text();
+                              const parsed = JSON.parse(text);
+                              const res = await apiCall('/api/cbt/sync-local', 'POST', parsed);
+                              const s = res?.synced || {};
+                              const total =
+                                (s.faculties || 0) +
+                                (s.studyPrograms || 0) +
+                                (s.classes || 0) +
+                                (s.courses || 0) +
+                                (s.students || 0) +
+                                (s.questions || 0) +
+                                (s.exams || 0) +
+                                (s.results || 0);
+                              showToast(
+                                total > 0
+                                  ? `Berhasil menyinkronkan ${total} data dari file backup ke database.`
+                                  : 'Seluruh data dalam file backup sudah ada di database.'
+                              );
+                            } catch (err: any) {
+                              showToast(err?.message || 'File JSON tidak valid atau gagal disinkronkan.');
+                            }
+                          }}
+                        />
+                      </label>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const blob = new Blob([JSON.stringify(state, null, 2)], {
+                            type: 'application/json',
+                          });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = url;
+                          a.download = `Backup_MazCodeID_CBT_${new Date().toISOString().slice(0, 10)}.json`;
+                          document.body.appendChild(a);
+                          a.click();
+                          document.body.removeChild(a);
+                          URL.revokeObjectURL(url);
+                          showToast('Cadangan data JSON berhasil diunduh.');
+                        }}
+                        className="h-9 px-4 bg-[#0F172A] hover:bg-[#1E293B] text-white rounded-md text-xs font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download Backup (.json)
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}

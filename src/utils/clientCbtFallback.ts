@@ -148,6 +148,26 @@ function saveFallbackState(state: CbtSystemState): void {
   }
 }
 
+export function getSavedLocalFallbackState(): CbtSystemState | null {
+  if (typeof window === 'undefined' || !window.localStorage) return null;
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw) as CbtSystemState;
+  } catch {
+    return null;
+  }
+}
+
+export function clearSavedLocalFallbackState(): void {
+  if (typeof window === 'undefined' || !window.localStorage) return;
+  try {
+    window.localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Ignore storage removal errors
+  }
+}
+
 function nextId(items: Array<{ id: number }>): number {
   return items.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
 }
@@ -1070,6 +1090,43 @@ export function handleClientFallbackRequest(
       persistState(state);
     }
     return r || { saved: true };
+  }
+
+  if (cleanPath === '/api/cbt/sync-local' && cleanMethod === 'POST') {
+    const synced = {
+      faculties: 0,
+      studyPrograms: 0,
+      classes: 0,
+      courses: 0,
+      students: 0,
+      questions: 0,
+      exams: 0,
+      sessions: 0,
+      answers: 0,
+      results: 0,
+      websiteSettings: 0,
+    };
+    const payload = (body || {}) as Partial<CbtSystemState>;
+    for (const ex of payload.exams || []) {
+      const exists = state.exams.some(
+        (e) => e.code.trim().toLowerCase() === String(ex.code || '').trim().toLowerCase()
+      );
+      if (!exists && ex.code) {
+        state.exams.push({ ...ex, id: nextId(state.exams) });
+        synced.exams += 1;
+      }
+    }
+    for (const c of payload.courses || []) {
+      const exists = state.courses.some(
+        (item) => item.code.trim().toLowerCase() === String(c.code || '').trim().toLowerCase()
+      );
+      if (!exists && c.code) {
+        state.courses.push({ ...c, id: nextId(state.courses) });
+        synced.courses += 1;
+      }
+    }
+    persistState(state);
+    return { synced };
   }
 
   return { ok: true };

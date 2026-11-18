@@ -8011,11 +8011,712 @@ var initialSeedSnapshot_default = {
       ]
     }
   ],
-  sessions: [],
-  answers: [],
-  snapshots: [],
-  violations: [],
-  results: [],
+  sessions: [
+    {
+      id: 1,
+      examId: 3,
+      studentId: 2,
+      status: "Kamera Terputus",
+      cameraStatus: "Terputus",
+      connectionStatus: "Online",
+      fullscreenStatus: false,
+      snapshot1Status: "Berhasil",
+      snapshot2Status: "Gagal",
+      snapshot3Status: "Berhasil",
+      violationCount: 1,
+      warningLevel: 1,
+      remainingSeconds: 0,
+      questionOrderJson: null,
+      startedAt: "2026-11-18T08:08:11.813Z",
+      finishedAt: "2026-11-18T08:10:23.191Z",
+      lastActiveAt: "2026-11-18T08:10:29.118Z"
+    }
+  ],
+  answers: [
+    {
+      id: 50,
+      sessionId: 1,
+      questionId: 49,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:22.969Z"
+    },
+    {
+      id: 49,
+      sessionId: 1,
+      questionId: 3,
+      answerValue: "E",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:16.164Z"
+    },
+    {
+      id: 48,
+      sessionId: 1,
+      questionId: 17,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:18.236Z"
+    },
+    {
+      id: 47,
+      sessionId: 1,
+      questionId: 46,
+      answerValue: "E",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:22.527Z"
+    },
+    {
+      id: 46,
+      sessionId: 1,
+      questionId: 37,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:21.197Z"
+    },
+    {
+      id: 45,
+      sessionId: 1,
+      questionId: 24,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:19.271Z"
+    },
+    {
+      id: 44,
+      sessionId: 1,
+      questionId: 47,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:22.674Z"
+    },
+    {
+      id: 43,
+      sessionId: 1,
+      questionId: 19,
+      answerValue: "E",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:18.531Z"
+    },
+    {
+      id: 42,
+      sessionId: 1,
+      questionId: 39,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:21.493Z"
+    },
+    {
+      id: 41,
+      sessionId: 1,
+      questionId: 12,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:17.497Z"
+    },
+    {
+      id: 40,
+      sessionId: 1,
+      questionId: 9,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:17.054Z"
+    },
+    {
+      id: 39,
+      sessionId: 1,
+      questionId: 16,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:18.088Z"
+    },
+    {
+      id: 38,
+      sessionId: 1,
+      questionId: 25,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:19.419Z"
+    },
+    {
+      id: 37,
+      sessionId: 1,
+      questionId: 8,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:16.905Z"
+    },
+    {
+      id: 36,
+      sessionId: 1,
+      questionId: 38,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:21.345Z"
+    },
+    {
+      id: 35,
+      sessionId: 1,
+      questionId: 10,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:17.201Z"
+    },
+    {
+      id: 34,
+      sessionId: 1,
+      questionId: 50,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:23.117Z"
+    },
+    {
+      id: 33,
+      sessionId: 1,
+      questionId: 36,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:21.049Z"
+    },
+    {
+      id: 32,
+      sessionId: 1,
+      questionId: 1,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:15.866Z"
+    },
+    {
+      id: 31,
+      sessionId: 1,
+      questionId: 21,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:18.828Z"
+    },
+    {
+      id: 30,
+      sessionId: 1,
+      questionId: 7,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:16.756Z"
+    },
+    {
+      id: 29,
+      sessionId: 1,
+      questionId: 13,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:17.644Z"
+    },
+    {
+      id: 28,
+      sessionId: 1,
+      questionId: 40,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:21.641Z"
+    },
+    {
+      id: 27,
+      sessionId: 1,
+      questionId: 14,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:17.792Z"
+    },
+    {
+      id: 26,
+      sessionId: 1,
+      questionId: 15,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:17.940Z"
+    },
+    {
+      id: 25,
+      sessionId: 1,
+      questionId: 29,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:20.013Z"
+    },
+    {
+      id: 24,
+      sessionId: 1,
+      questionId: 48,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:22.822Z"
+    },
+    {
+      id: 23,
+      sessionId: 1,
+      questionId: 2,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:16.016Z"
+    },
+    {
+      id: 22,
+      sessionId: 1,
+      questionId: 31,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:20.309Z"
+    },
+    {
+      id: 21,
+      sessionId: 1,
+      questionId: 34,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:20.753Z"
+    },
+    {
+      id: 20,
+      sessionId: 1,
+      questionId: 28,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:19.864Z"
+    },
+    {
+      id: 19,
+      sessionId: 1,
+      questionId: 32,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:20.457Z"
+    },
+    {
+      id: 18,
+      sessionId: 1,
+      questionId: 26,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:19.568Z"
+    },
+    {
+      id: 17,
+      sessionId: 1,
+      questionId: 20,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:18.680Z"
+    },
+    {
+      id: 16,
+      sessionId: 1,
+      questionId: 43,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:22.084Z"
+    },
+    {
+      id: 15,
+      sessionId: 1,
+      questionId: 44,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:22.232Z"
+    },
+    {
+      id: 14,
+      sessionId: 1,
+      questionId: 45,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:22.380Z"
+    },
+    {
+      id: 13,
+      sessionId: 1,
+      questionId: 11,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:17.349Z"
+    },
+    {
+      id: 12,
+      sessionId: 1,
+      questionId: 27,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:19.715Z"
+    },
+    {
+      id: 11,
+      sessionId: 1,
+      questionId: 5,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:16.460Z"
+    },
+    {
+      id: 10,
+      sessionId: 1,
+      questionId: 22,
+      answerValue: "C",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:18.976Z"
+    },
+    {
+      id: 9,
+      sessionId: 1,
+      questionId: 42,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:21.936Z"
+    },
+    {
+      id: 8,
+      sessionId: 1,
+      questionId: 41,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:21.789Z"
+    },
+    {
+      id: 7,
+      sessionId: 1,
+      questionId: 23,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:19.124Z"
+    },
+    {
+      id: 6,
+      sessionId: 1,
+      questionId: 33,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:20.605Z"
+    },
+    {
+      id: 5,
+      sessionId: 1,
+      questionId: 30,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:20.161Z"
+    },
+    {
+      id: 4,
+      sessionId: 1,
+      questionId: 18,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:18.383Z"
+    },
+    {
+      id: 3,
+      sessionId: 1,
+      questionId: 6,
+      answerValue: "D",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:16.608Z"
+    },
+    {
+      id: 2,
+      sessionId: 1,
+      questionId: 4,
+      answerValue: "B",
+      isDoubtful: false,
+      isCorrect: false,
+      scoreEarned: 0,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:16.312Z"
+    },
+    {
+      id: 1,
+      sessionId: 1,
+      questionId: 35,
+      answerValue: "A",
+      isDoubtful: false,
+      isCorrect: true,
+      scoreEarned: 2,
+      lecturerFeedback: null,
+      updatedAt: "2026-11-18T08:10:20.901Z"
+    }
+  ],
+  snapshots: [
+    {
+      id: 6,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      courseName: "Pengantar Teknologi Informasi",
+      sequenceNumber: 3,
+      triggerStage: "Menjelang Ujian Berakhir (Snapshot 3)",
+      status: "Gagal",
+      imageDataUrl: "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      retryCount: 1,
+      capturedAt: "2026-11-18T08:10:12.293Z"
+    },
+    {
+      id: 5,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      courseName: "Pengantar Teknologi Informasi",
+      sequenceNumber: 2,
+      triggerStage: "Waktu Acak Tengah Ujian (Snapshot 2)",
+      status: "Gagal",
+      imageDataUrl: "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      retryCount: 1,
+      capturedAt: "2026-11-18T08:10:03.731Z"
+    },
+    {
+      id: 4,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      courseName: "Pengantar Teknologi Informasi",
+      sequenceNumber: 2,
+      triggerStage: "Waktu Acak Tengah Ujian (Snapshot 2)",
+      status: "Gagal",
+      imageDataUrl: "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      retryCount: 1,
+      capturedAt: "2026-11-18T08:09:10.286Z"
+    },
+    {
+      id: 3,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      courseName: "Pengantar Teknologi Informasi",
+      sequenceNumber: 2,
+      triggerStage: "Waktu Acak Tengah Ujian (Snapshot 2)",
+      status: "Gagal",
+      imageDataUrl: "/src/assets/images/avatar_student_1_1794677775068.jpg",
+      retryCount: 1,
+      capturedAt: "2026-11-18T08:08:57.297Z"
+    },
+    {
+      id: 2,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      courseName: "Pengantar Teknologi Informasi",
+      sequenceNumber: 1,
+      triggerStage: "Saat Memulai Ujian (Snapshot 1)",
+      status: "Berhasil",
+      imageDataUrl: "/uploads/snapshots/snap_3_1_seq1_1794989310361.jpg",
+      retryCount: 0,
+      capturedAt: "2026-11-18T08:08:30.398Z"
+    },
+    {
+      id: 1,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      courseName: "Pengantar Teknologi Informasi",
+      sequenceNumber: 1,
+      triggerStage: "Saat Memulai Ujian (Snapshot 1)",
+      status: "Berhasil",
+      imageDataUrl: "/uploads/snapshots/snap_3_1_seq1_1794989309913.jpg",
+      retryCount: 0,
+      capturedAt: "2026-11-18T08:08:29.949Z"
+    }
+  ],
+  violations: [
+    {
+      id: 1,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      courseName: "Pengantar Teknologi Informasi",
+      violationType: "Keluar Mode Fullscreen",
+      warningLevel: 1,
+      description: "Peserta keluar dari mode layar penuh (Fullscreen Exam Mode) saat ujian berlangsung.",
+      verifiedByAdmin: false,
+      actionTaken: "Peringatan 1: Pelanggaran Ringan",
+      detectedAt: "2026-11-18T08:10:29.074Z"
+    }
+  ],
+  results: [
+    {
+      id: 1,
+      sessionId: 1,
+      examId: 3,
+      studentId: 2,
+      nim: "265920002",
+      studentName: "KHAYATUN NURUL JANAH",
+      studyProgramName: "Teknologi Informasi (S1)",
+      courseName: "Pengantar Teknologi Informasi",
+      correctCount: 14,
+      wrongCount: 36,
+      emptyCount: 0,
+      objectiveScore: 28,
+      essayScore: 0,
+      finalScore: 28,
+      gradeLetter: "E",
+      durationUsedMinutes: 1,
+      violationCount: 0,
+      verificationStatus: "Terverifikasi Aman",
+      isPublished: true,
+      submittedAt: "2026-11-18T08:10:23.597Z"
+    }
+  ],
   auditLogs: []
 };
 
@@ -9129,6 +9830,42 @@ function handleClientFallbackRequest(url, method, body, adapter) {
     }
     return r || { saved: true };
   }
+  if (cleanPath === "/api/cbt/sync-local" && cleanMethod === "POST") {
+    const synced = {
+      faculties: 0,
+      studyPrograms: 0,
+      classes: 0,
+      courses: 0,
+      students: 0,
+      questions: 0,
+      exams: 0,
+      sessions: 0,
+      answers: 0,
+      results: 0,
+      websiteSettings: 0
+    };
+    const payload = body || {};
+    for (const ex of payload.exams || []) {
+      const exists = state.exams.some(
+        (e) => e.code.trim().toLowerCase() === String(ex.code || "").trim().toLowerCase()
+      );
+      if (!exists && ex.code) {
+        state.exams.push({ ...ex, id: nextId(state.exams) });
+        synced.exams += 1;
+      }
+    }
+    for (const c of payload.courses || []) {
+      const exists = state.courses.some(
+        (item) => item.code.trim().toLowerCase() === String(c.code || "").trim().toLowerCase()
+      );
+      if (!exists && c.code) {
+        state.courses.push({ ...c, id: nextId(state.courses) });
+        synced.courses += 1;
+      }
+    }
+    persistState(state);
+    return { synced };
+  }
   return { ok: true };
 }
 
@@ -9242,20 +9979,8 @@ import { createRequire as createRequire2 } from "module";
 var require3 = createRequire2(import.meta.url);
 var initialSeedSnapshot = require3("./initialSeedSnapshot.json");
 var SNAPSHOT_UPLOAD_DIR = process.env.VERCEL ? path2.join("/tmp", "uploads", "snapshots") : path2.resolve(process.cwd(), "uploads", "snapshots");
-async function saveSnapshotImageToDisk(rawImageUrl, meta) {
-  const parsed = parseDataImageUrl(rawImageUrl);
-  if (!parsed) {
-    return rawImageUrl || DEFAULT_STUDENT_IMG;
-  }
-  try {
-    await fs2.mkdir(SNAPSHOT_UPLOAD_DIR, { recursive: true });
-    const fileName = `snap_${meta.examId}_${meta.sessionId}_seq${meta.sequenceNumber}_${Date.now()}.${parsed.extension}`;
-    const fullPath = path2.join(SNAPSHOT_UPLOAD_DIR, fileName);
-    await fs2.writeFile(fullPath, Buffer.from(parsed.base64Data, "base64"));
-    return `/uploads/snapshots/${fileName}`;
-  } catch {
-    return rawImageUrl;
-  }
+async function saveSnapshotImageToDisk(rawImageUrl, _meta) {
+  return (rawImageUrl || "").trim() || DEFAULT_STUDENT_IMG;
 }
 async function removeSnapshotFileFromDisk(storedUrl) {
   if (!storedUrl || !storedUrl.startsWith("/uploads/snapshots/")) return;
@@ -10796,7 +11521,7 @@ async function recordViolationEvent(data) {
     const updatedSession = await db.update(examSessions).set({
       violationCount: nextCount,
       warningLevel: warning.level,
-      status: data.cameraStatus === "Terputus" ? "Kamera Terputus" : "Terindikasi Pelanggaran",
+      status: currentSession?.status === "Selesai" ? "Selesai" : data.cameraStatus === "Terputus" ? "Kamera Terputus" : "Terindikasi Pelanggaran",
       cameraStatus: data.cameraStatus || currentSession?.cameraStatus || "Aktif",
       fullscreenStatus: typeof data.fullscreenStatus === "boolean" ? data.fullscreenStatus : currentSession?.fullscreenStatus ?? true,
       connectionStatus: data.connectionStatus || currentSession?.connectionStatus || "Online",
@@ -10983,6 +11708,341 @@ async function verifyViolationRecord(data) {
     throw new Error("Gagal memverifikasi log pelanggaran.", { cause: error });
   }
 }
+async function syncLocalStateToDatabase(payload) {
+  await ensureSeeded();
+  const synced = {
+    faculties: 0,
+    studyPrograms: 0,
+    classes: 0,
+    courses: 0,
+    students: 0,
+    questions: 0,
+    exams: 0,
+    sessions: 0,
+    answers: 0,
+    results: 0,
+    websiteSettings: 0
+  };
+  try {
+    const existingFaculties = await db.select().from(faculties);
+    const facultyByCode = new Map(
+      existingFaculties.map((f) => [f.code.trim().toLowerCase(), f.id])
+    );
+    const facultyIdMap = /* @__PURE__ */ new Map();
+    for (const f of payload.faculties || []) {
+      const key = String(f.code || "").trim().toLowerCase();
+      if (!key) continue;
+      let targetId = facultyByCode.get(key);
+      if (!targetId) {
+        const inserted = await db.insert(faculties).values({
+          code: f.code.trim(),
+          name: f.name || f.code.trim(),
+          deanName: f.deanName || "-"
+        }).returning();
+        targetId = inserted[0].id;
+        facultyByCode.set(key, targetId);
+        synced.faculties += 1;
+      }
+      if (f.id) facultyIdMap.set(f.id, targetId);
+    }
+    const existingProdis = await db.select().from(studyPrograms);
+    const prodiByCode = new Map(
+      existingProdis.map((p) => [p.code.trim().toLowerCase(), p.id])
+    );
+    const prodiIdMap = /* @__PURE__ */ new Map();
+    for (const p of payload.studyPrograms || []) {
+      const key = String(p.code || "").trim().toLowerCase();
+      if (!key) continue;
+      let targetId = prodiByCode.get(key);
+      if (!targetId) {
+        const mappedFacId = p.facultyId && facultyIdMap.has(p.facultyId) ? facultyIdMap.get(p.facultyId) : existingFaculties[0]?.id ?? null;
+        const inserted = await db.insert(studyPrograms).values({
+          code: p.code.trim(),
+          name: p.name || p.code.trim(),
+          degree: p.degree || "S1",
+          facultyId: mappedFacId,
+          headName: p.headName || "-"
+        }).returning();
+        targetId = inserted[0].id;
+        prodiByCode.set(key, targetId);
+        synced.studyPrograms += 1;
+      }
+      if (p.id) prodiIdMap.set(p.id, targetId);
+    }
+    const existingClasses = await db.select().from(classes);
+    const classByCode = new Map(
+      existingClasses.map((c) => [c.code.trim().toLowerCase(), c.id])
+    );
+    const classIdMap = /* @__PURE__ */ new Map();
+    for (const c of payload.classes || []) {
+      const key = String(c.code || "").trim().toLowerCase();
+      if (!key) continue;
+      let targetId = classByCode.get(key);
+      if (!targetId) {
+        const mappedProdiId = c.studyProgramId && prodiIdMap.has(c.studyProgramId) ? prodiIdMap.get(c.studyProgramId) : null;
+        const inserted = await db.insert(classes).values({
+          code: c.code.trim(),
+          name: c.name || c.code.trim(),
+          semester: Number(c.semester) || 1,
+          academicYear: c.academicYear || "2026/2027 Ganjil",
+          studyProgramId: mappedProdiId,
+          capacity: Number(c.capacity) || 40
+        }).returning();
+        targetId = inserted[0].id;
+        classByCode.set(key, targetId);
+        synced.classes += 1;
+      }
+      if (c.id) classIdMap.set(c.id, targetId);
+    }
+    const existingCourses = await db.select().from(courses);
+    const courseByCode = new Map(
+      existingCourses.map((c) => [c.code.trim().toLowerCase(), c.id])
+    );
+    const courseIdMap = /* @__PURE__ */ new Map();
+    for (const c of payload.courses || []) {
+      const key = String(c.code || "").trim().toLowerCase();
+      if (!key) continue;
+      let targetId = courseByCode.get(key);
+      if (!targetId) {
+        const mappedProdiId = c.studyProgramId && prodiIdMap.has(c.studyProgramId) ? prodiIdMap.get(c.studyProgramId) : null;
+        const inserted = await db.insert(courses).values({
+          code: c.code.trim(),
+          name: c.name || c.code.trim(),
+          sks: Number(c.sks) || 3,
+          semester: Number(c.semester) || 1,
+          studyProgramId: mappedProdiId,
+          lecturerId: null,
+          description: c.description || ""
+        }).returning();
+        targetId = inserted[0].id;
+        courseByCode.set(key, targetId);
+        synced.courses += 1;
+      }
+      if (c.id) courseIdMap.set(c.id, targetId);
+    }
+    const existingStudents = await db.select().from(students);
+    const existingUsers = await db.select().from(users);
+    const allRoles = await db.select().from(roles);
+    const studentRole = allRoles.find((r) => r.name === "mahasiswa") || allRoles[0];
+    const studentByNim = new Map(
+      existingStudents.map((s) => [s.nim.trim().toLowerCase(), s.id])
+    );
+    const userByEmail = new Map(
+      existingUsers.map((u) => [u.email.trim().toLowerCase(), u])
+    );
+    const studentIdMap = /* @__PURE__ */ new Map();
+    for (const st of payload.students || []) {
+      const cleanNim = String(st.nim || "").trim();
+      if (!cleanNim) continue;
+      const key = cleanNim.toLowerCase();
+      let targetStudentId = studentByNim.get(key);
+      if (!targetStudentId) {
+        const linkedPayloadUser = (payload.users || []).find(
+          (u) => u.id === st.userId
+        );
+        const sanitizedSlug = cleanNim.toLowerCase().replace(/[^a-z0-9._-]/g, "") || `${Date.now()}`;
+        let email = (linkedPayloadUser?.email || st.email || `${sanitizedSlug}@student.unikma.ac.id`).trim().toLowerCase();
+        let targetUser = userByEmail.get(email);
+        if (!targetUser) {
+          const insertedUsers = await db.insert(users).values({
+            uid: linkedPayloadUser?.uid || `uid-sync-${sanitizedSlug}-${Date.now()}`,
+            email,
+            passwordHash: linkedPayloadUser?.passwordHash || cleanNim,
+            fullName: st.fullName.trim(),
+            roleId: studentRole.id,
+            roleName: "mahasiswa",
+            avatarUrl: st.avatarUrl || DEFAULT_STUDENT_IMG,
+            isActive: linkedPayloadUser?.isActive ?? true
+          }).returning();
+          targetUser = insertedUsers[0];
+          userByEmail.set(email, targetUser);
+        }
+        const insertedStudent = await db.insert(students).values({
+          userId: targetUser.id,
+          nim: cleanNim,
+          fullName: st.fullName.trim(),
+          facultyId: st.facultyId && facultyIdMap.has(st.facultyId) ? facultyIdMap.get(st.facultyId) : null,
+          studyProgramId: st.studyProgramId && prodiIdMap.has(st.studyProgramId) ? prodiIdMap.get(st.studyProgramId) : null,
+          classId: st.classId && classIdMap.has(st.classId) ? classIdMap.get(st.classId) : null,
+          semester: Number(st.semester) || 1,
+          enrollmentYear: Number(st.enrollmentYear) || 2026,
+          avatarUrl: st.avatarUrl || DEFAULT_STUDENT_IMG
+        }).returning();
+        targetStudentId = insertedStudent[0].id;
+        studentByNim.set(key, targetStudentId);
+        synced.students += 1;
+      }
+      if (st.id) studentIdMap.set(st.id, targetStudentId);
+    }
+    const existingExams = await db.select().from(exams);
+    const examByCode = new Map(
+      existingExams.map((e) => [e.code.trim().toLowerCase(), e.id])
+    );
+    const examIdMap = /* @__PURE__ */ new Map();
+    for (const ex of payload.exams || []) {
+      const cleanCode = String(ex.code || "").trim();
+      if (!cleanCode) continue;
+      const key = cleanCode.toLowerCase();
+      let targetExamId = examByCode.get(key);
+      if (!targetExamId) {
+        const mappedCourseId = ex.courseId && courseIdMap.has(ex.courseId) ? courseIdMap.get(ex.courseId) : null;
+        const mappedClassId = ex.classId && classIdMap.has(ex.classId) ? classIdMap.get(ex.classId) : null;
+        const createdExam = await createExamRecord({
+          code: cleanCode,
+          title: ex.title || cleanCode,
+          courseId: mappedCourseId,
+          lecturerId: null,
+          classId: mappedClassId,
+          examType: ex.examType || "UTS",
+          durationMinutes: ex.durationMinutes || 60,
+          startTime: ex.startTime,
+          endTime: ex.endTime,
+          totalQuestions: ex.totalQuestions || 20,
+          passingGrade: ex.passingGrade || 70,
+          randomizeQuestions: ex.randomizeQuestions ?? true,
+          randomizeOptions: ex.randomizeOptions ?? true,
+          maxAttempts: ex.maxAttempts || 1,
+          requireCamera: ex.requireCamera ?? true,
+          requireFullscreen: ex.requireFullscreen ?? true,
+          snapshotCount: ex.snapshotCount || 3,
+          maxViolations: ex.maxViolations || 3,
+          violationAction: ex.violationAction || "warn_and_flag",
+          status: ex.status || "Berlangsung"
+        });
+        targetExamId = createdExam.id;
+        examByCode.set(key, targetExamId);
+        synced.exams += 1;
+      }
+      if (ex.id) examIdMap.set(ex.id, targetExamId);
+    }
+    const existingQuestions = await db.select().from(examQuestions);
+    const questionKeySet = new Set(
+      existingQuestions.map(
+        (q) => `${q.courseId || 0}::${q.questionText.trim().toLowerCase()}`
+      )
+    );
+    const questionIdMap = /* @__PURE__ */ new Map();
+    for (const q of existingQuestions) {
+      questionIdMap.set(q.id, q.id);
+    }
+    const questionsToInsert = [];
+    for (const q of payload.questions || []) {
+      const cleanText = String(q.questionText || "").trim();
+      if (!cleanText) continue;
+      const mappedCourseId = q.courseId && courseIdMap.has(q.courseId) ? courseIdMap.get(q.courseId) : null;
+      const mappedExamId = q.examId && examIdMap.has(q.examId) ? examIdMap.get(q.examId) : null;
+      const qKey = `${mappedCourseId || 0}::${cleanText.toLowerCase()}`;
+      if (questionKeySet.has(qKey)) {
+        const matchedExisting = existingQuestions.find(
+          (eqRow) => `${eqRow.courseId || 0}::${eqRow.questionText.trim().toLowerCase()}` === qKey
+        );
+        if (matchedExisting && q.id) {
+          questionIdMap.set(q.id, matchedExisting.id);
+        }
+        continue;
+      }
+      questionKeySet.add(qKey);
+      questionsToInsert.push({
+        sourceId: q.id,
+        courseId: mappedCourseId,
+        examId: mappedExamId,
+        questionType: q.questionType || "pilihan_ganda",
+        difficulty: q.difficulty || "Sedang",
+        questionText: cleanText,
+        mediaType: q.mediaType || "none",
+        mediaContent: q.mediaContent || "",
+        weight: Number(q.weight) || 2,
+        correctAnswerKey: q.correctAnswerKey || "A",
+        explanation: q.explanation || "",
+        options: (q.options || []).map((o) => ({
+          optionLabel: o.optionLabel,
+          optionText: o.optionText,
+          isCorrect: Boolean(o.isCorrect)
+        }))
+      });
+    }
+    if (questionsToInsert.length > 0) {
+      const insertedQs = await importQuestionRecords(questionsToInsert);
+      synced.questions = insertedQs.length;
+      insertedQs.forEach((insertedQ, idx) => {
+        const srcId = questionsToInsert[idx]?.sourceId;
+        if (srcId) {
+          questionIdMap.set(srcId, insertedQ.id);
+        }
+      });
+    }
+    const existingSessions = await db.select().from(examSessions);
+    const sessionKeyMap = new Map(
+      existingSessions.map((s) => [`${s.examId}:${s.studentId}`, s.id])
+    );
+    const sessionIdMap = /* @__PURE__ */ new Map();
+    for (const s of payload.sessions || []) {
+      const mappedExamId = examIdMap.get(s.examId) || s.examId;
+      const mappedStudentId = studentIdMap.get(s.studentId) || s.studentId;
+      if (!mappedExamId || !mappedStudentId) continue;
+      const pairKey = `${mappedExamId}:${mappedStudentId}`;
+      let targetSessionId = sessionKeyMap.get(pairKey);
+      if (!targetSessionId) {
+        const insertedSess = await db.insert(examSessions).values({
+          examId: mappedExamId,
+          studentId: mappedStudentId,
+          status: s.status || "Selesai",
+          cameraStatus: s.cameraStatus || "Aktif",
+          connectionStatus: s.connectionStatus || "Online",
+          fullscreenStatus: Boolean(s.fullscreenStatus ?? true),
+          snapshot1Status: s.snapshot1Status || "Belum Diambil",
+          snapshot2Status: s.snapshot2Status || "Belum Diambil",
+          snapshot3Status: s.snapshot3Status || "Belum Diambil",
+          violationCount: Number(s.violationCount) || 0,
+          warningLevel: Number(s.warningLevel) || 0,
+          remainingSeconds: Number(s.remainingSeconds) || 0,
+          finishedAt: s.finishedAt ? new Date(s.finishedAt) : null
+        }).returning();
+        targetSessionId = insertedSess[0].id;
+        sessionKeyMap.set(pairKey, targetSessionId);
+        synced.sessions += 1;
+      }
+      if (s.id) sessionIdMap.set(s.id, targetSessionId);
+    }
+    for (const r of payload.results || []) {
+      const mappedExamId = examIdMap.get(r.examId) || r.examId;
+      const mappedStudentId = studentIdMap.get(r.studentId) || r.studentId;
+      const mappedSessionId = sessionIdMap.get(r.sessionId) || sessionKeyMap.get(`${mappedExamId}:${mappedStudentId}`);
+      if (!mappedSessionId || !mappedExamId || !mappedStudentId) continue;
+      const existingRes = await db.select().from(examResults).where(eq(examResults.sessionId, mappedSessionId));
+      if (existingRes.length === 0) {
+        await db.insert(examResults).values({
+          sessionId: mappedSessionId,
+          examId: mappedExamId,
+          studentId: mappedStudentId,
+          nim: r.nim || "-",
+          studentName: r.studentName || "Mahasiswa",
+          studyProgramName: r.studyProgramName || "-",
+          courseName: r.courseName || "-",
+          correctCount: Number(r.correctCount) || 0,
+          wrongCount: Number(r.wrongCount) || 0,
+          emptyCount: Number(r.emptyCount) || 0,
+          objectiveScore: Number(r.objectiveScore) || 0,
+          essayScore: Number(r.essayScore) || 0,
+          finalScore: Number(r.finalScore) || 0,
+          gradeLetter: r.gradeLetter || "E",
+          durationUsedMinutes: Number(r.durationUsedMinutes) || 1,
+          violationCount: Number(r.violationCount) || 0,
+          verificationStatus: r.verificationStatus || "Terverifikasi Aman",
+          isPublished: Boolean(r.isPublished ?? true)
+        });
+        synced.results += 1;
+      }
+    }
+    return { synced };
+  } catch (error) {
+    console.error("Failed to sync local state to database:", error);
+    throw new Error(
+      error?.message || "Gagal menyinkronkan data lokal ke database.",
+      { cause: error }
+    );
+  }
+}
 
 // server.ts
 dotenv.config();
@@ -11136,6 +12196,21 @@ function registerRoutes() {
       res.status(500).json({ error: error.message || "Gagal memuat data CBT." });
     }
   });
+  app.post(
+    "/api/cbt/sync-local",
+    requireAuth,
+    async (req, res) => {
+      try {
+        const result = await syncLocalStateToDatabase(req.body || {});
+        broadcastEvent("state:refresh", { entity: "sync" });
+        res.json(result);
+      } catch (error) {
+        res.status(500).json({
+          error: error.message || "Gagal menyinkronkan data lokal ke database."
+        });
+      }
+    }
+  );
   app.post(
     "/api/cbt/website-settings",
     requireAuth,
@@ -11556,11 +12631,14 @@ function registerRoutes() {
       }
       res.setHeader("Cache-Control", "public, max-age=86400");
       if (imgData.filePath) {
-        return res.sendFile(imgData.filePath, (err) => {
-          if (err && !res.headersSent) {
-            res.status(404).json({ error: "File gambar snapshot tidak ditemukan." });
-          }
-        });
+        if (fs3.existsSync(imgData.filePath)) {
+          return res.sendFile(imgData.filePath, (err) => {
+            if (err && !res.headersSent) {
+              res.redirect("/src/assets/images/avatar_student_1_1794677775068.jpg");
+            }
+          });
+        }
+        return res.redirect("/src/assets/images/avatar_student_1_1794677775068.jpg");
       }
       if (imgData.buffer && imgData.mimeType) {
         res.setHeader("Content-Type", imgData.mimeType);
