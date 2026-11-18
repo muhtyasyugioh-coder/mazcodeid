@@ -10379,41 +10379,135 @@ async function deleteQuestionRecord(questionId) {
 }
 async function createExamRecord(data) {
   try {
+    const durationMinutes = Math.max(5, Number(data.durationMinutes) || 60);
+    const totalQuestions = Math.max(1, Number(data.totalQuestions) || 10);
+    const nowMs = Date.now();
+    const startTime = typeof data.startTime === "string" && data.startTime.trim() !== "" ? data.startTime.trim() : new Date(nowMs).toISOString();
+    const parsedStartMs = Date.parse(startTime);
+    const endTime = typeof data.endTime === "string" && data.endTime.trim() !== "" ? data.endTime.trim() : new Date(
+      (Number.isFinite(parsedStartMs) ? parsedStartMs : nowMs) + durationMinutes * 60 * 1e3
+    ).toISOString();
+    const code = typeof data.code === "string" && data.code.trim() !== "" ? data.code.trim() : `CBT-${nowMs}`;
+    const title = typeof data.title === "string" && data.title.trim() !== "" ? data.title.trim() : "Ujian CBT Baru";
     const inserted = await db.insert(exams).values({
-      code: data.code,
-      title: data.title,
-      courseId: data.courseId ? Number(data.courseId) : null,
-      lecturerId: data.lecturerId ? Number(data.lecturerId) : null,
-      classId: data.classId ? Number(data.classId) : null,
+      code,
+      title,
+      courseId: data.courseId && Number(data.courseId) > 0 ? Number(data.courseId) : null,
+      lecturerId: data.lecturerId && Number(data.lecturerId) > 0 ? Number(data.lecturerId) : null,
+      classId: data.classId && Number(data.classId) > 0 ? Number(data.classId) : null,
       examType: data.examType || "UTS",
-      durationMinutes: Number(data.durationMinutes) || 60,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      totalQuestions: Number(data.totalQuestions) || 10,
+      durationMinutes,
+      startTime,
+      endTime,
+      totalQuestions,
       passingGrade: Number(data.passingGrade) || 70,
       randomizeQuestions: data.randomizeQuestions ?? true,
       randomizeOptions: data.randomizeOptions ?? true,
-      maxAttempts: Number(data.maxAttempts) || 1,
+      maxAttempts: Math.max(1, Number(data.maxAttempts) || 1),
       requireCamera: data.requireCamera ?? true,
       requireFullscreen: data.requireFullscreen ?? true,
-      snapshotCount: Number(data.snapshotCount) || 3,
-      maxViolations: Number(data.maxViolations) || 3,
-      violationAction: data.violationAction ?? "warn_and_flag",
-      status: data.status ?? "Berlangsung",
+      snapshotCount: Math.max(1, Number(data.snapshotCount) || 3),
+      maxViolations: Math.max(1, Number(data.maxViolations) || 3),
+      violationAction: data.violationAction || "warn_and_flag",
+      status: data.status || "Berlangsung",
       resultsPublished: true
     }).returning();
     return inserted[0];
   } catch (error) {
     console.error("Failed to create exam:", error);
+    const pgCode = error?.code || error?.cause?.code;
+    if (pgCode === "23505") {
+      throw new Error(
+        `Kode ujian "${data.code}" sudah terdaftar. Gunakan kode ujian yang berbeda.`,
+        { cause: error }
+      );
+    }
     throw new Error("Gagal membuat jadwal ujian baru.", { cause: error });
   }
 }
 async function updateExamConfig(examId, updates) {
   try {
-    const res = await db.update(exams).set(updates).where(eq(exams.id, examId)).returning();
+    const sanitized = {};
+    if (typeof updates.code === "string" && updates.code.trim()) {
+      sanitized.code = updates.code.trim();
+    }
+    if (typeof updates.title === "string" && updates.title.trim()) {
+      sanitized.title = updates.title.trim();
+    }
+    if (updates.courseId !== void 0) {
+      sanitized.courseId = updates.courseId && Number(updates.courseId) > 0 ? Number(updates.courseId) : null;
+    }
+    if (updates.lecturerId !== void 0) {
+      sanitized.lecturerId = updates.lecturerId && Number(updates.lecturerId) > 0 ? Number(updates.lecturerId) : null;
+    }
+    if (updates.classId !== void 0) {
+      sanitized.classId = updates.classId && Number(updates.classId) > 0 ? Number(updates.classId) : null;
+    }
+    if (typeof updates.examType === "string" && updates.examType.trim()) {
+      sanitized.examType = updates.examType.trim();
+    }
+    if (typeof updates.startTime === "string" && updates.startTime.trim()) {
+      sanitized.startTime = updates.startTime.trim();
+    }
+    if (typeof updates.endTime === "string" && updates.endTime.trim()) {
+      sanitized.endTime = updates.endTime.trim();
+    }
+    if (updates.durationMinutes !== void 0) {
+      sanitized.durationMinutes = Math.max(
+        5,
+        Number(updates.durationMinutes) || 60
+      );
+    }
+    if (updates.totalQuestions !== void 0) {
+      sanitized.totalQuestions = Math.max(
+        1,
+        Number(updates.totalQuestions) || 10
+      );
+    }
+    if (updates.passingGrade !== void 0) {
+      sanitized.passingGrade = Number(updates.passingGrade) || 70;
+    }
+    if (updates.maxAttempts !== void 0) {
+      sanitized.maxAttempts = Math.max(1, Number(updates.maxAttempts) || 1);
+    }
+    if (updates.snapshotCount !== void 0) {
+      sanitized.snapshotCount = Math.max(1, Number(updates.snapshotCount) || 3);
+    }
+    if (updates.maxViolations !== void 0) {
+      sanitized.maxViolations = Math.max(1, Number(updates.maxViolations) || 3);
+    }
+    if (typeof updates.violationAction === "string" && updates.violationAction) {
+      sanitized.violationAction = updates.violationAction;
+    }
+    if (typeof updates.requireCamera === "boolean") {
+      sanitized.requireCamera = updates.requireCamera;
+    }
+    if (typeof updates.requireFullscreen === "boolean") {
+      sanitized.requireFullscreen = updates.requireFullscreen;
+    }
+    if (typeof updates.randomizeQuestions === "boolean") {
+      sanitized.randomizeQuestions = updates.randomizeQuestions;
+    }
+    if (typeof updates.randomizeOptions === "boolean") {
+      sanitized.randomizeOptions = updates.randomizeOptions;
+    }
+    if (typeof updates.status === "string" && updates.status.trim()) {
+      sanitized.status = updates.status.trim();
+    }
+    if (typeof updates.resultsPublished === "boolean") {
+      sanitized.resultsPublished = updates.resultsPublished;
+    }
+    const res = await db.update(exams).set(sanitized).where(eq(exams.id, examId)).returning();
     return res[0];
   } catch (error) {
     console.error("Failed to update exam config:", error);
+    const pgCode = error?.code || error?.cause?.code;
+    if (pgCode === "23505") {
+      throw new Error(
+        `Kode ujian "${updates.code}" sudah terdaftar. Gunakan kode ujian yang berbeda.`,
+        { cause: error }
+      );
+    }
     throw new Error("Gagal memperbarui konfigurasi ujian.", { cause: error });
   }
 }

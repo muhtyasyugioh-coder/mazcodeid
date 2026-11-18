@@ -202,6 +202,8 @@ export default function App() {
     examType: 'UTS',
     durationMinutes: 60,
     totalQuestions: 20,
+    startTime: '',
+    endTime: '',
     passingGrade: 70,
     randomizeQuestions: true,
     randomizeOptions: true,
@@ -210,8 +212,8 @@ export default function App() {
     requireFullscreen: true,
     snapshotCount: 3,
     maxViolations: 3,
-    violationAction: 'flag_for_review',
-    status: 'published',
+    violationAction: 'warn_and_flag',
+    status: 'Berlangsung',
   });
 
   // 6. CRUD Website Settings
@@ -2879,23 +2881,64 @@ export default function App() {
                     <form
                       onSubmit={async (e) => {
                         e.preventDefault();
-                        if (editingExamId) {
-                          await apiCall(
-                            `/api/cbt/exams/${editingExamId}`,
-                            'PUT',
-                            examForm
-                          );
-                          showToast('Jadwal Ujian berhasil diperbarui.');
-                        } else {
-                          await apiCall('/api/cbt/exams', 'POST', examForm);
-                          showToast('Jadwal Ujian CBT baru berhasil diterbitkan.');
-                        }
-                        setEditingExamId(null);
-                        setExamForm({
+                        const durationMinutes = Math.max(
+                          5,
+                          Number(examForm.durationMinutes) || 60
+                        );
+                        const totalQuestions = Math.max(
+                          1,
+                          Number(examForm.totalQuestions) || 20
+                        );
+                        const nowMs = Date.now();
+                        const startTime =
+                          examForm.startTime && examForm.startTime.trim() !== ''
+                            ? examForm.startTime.trim()
+                            : new Date(nowMs).toISOString();
+                        const parsedStart = Date.parse(startTime);
+                        const endTime =
+                          examForm.endTime && examForm.endTime.trim() !== ''
+                            ? examForm.endTime.trim()
+                            : new Date(
+                                (Number.isFinite(parsedStart)
+                                  ? parsedStart
+                                  : nowMs) +
+                                  durationMinutes * 60 * 1000
+                              ).toISOString();
+                        const payload = {
                           ...examForm,
-                          code: '',
-                          title: '',
-                        });
+                          code: examForm.code.trim(),
+                          title: examForm.title.trim(),
+                          durationMinutes,
+                          totalQuestions,
+                          startTime,
+                          endTime,
+                          randomizeOptions: examForm.randomizeQuestions,
+                        };
+                        try {
+                          if (editingExamId) {
+                            await apiCall(
+                              `/api/cbt/exams/${editingExamId}`,
+                              'PUT',
+                              payload
+                            );
+                            showToast('Jadwal Ujian berhasil diperbarui.');
+                          } else {
+                            await apiCall('/api/cbt/exams', 'POST', payload);
+                            showToast('Jadwal Ujian CBT baru berhasil diterbitkan.');
+                          }
+                          setEditingExamId(null);
+                          setExamForm({
+                            ...examForm,
+                            code: '',
+                            title: '',
+                            startTime: '',
+                            endTime: '',
+                          });
+                        } catch (err: any) {
+                          showToast(
+                            err?.message || 'Gagal menyimpan jadwal ujian.'
+                          );
+                        }
                       }}
                       className="bg-white border border-[#E2E8F0] rounded-lg p-5 space-y-4"
                     >
@@ -2910,7 +2953,13 @@ export default function App() {
                             type="button"
                             onClick={() => {
                               setEditingExamId(null);
-                              setExamForm({ ...examForm, code: '', title: '' });
+                              setExamForm({
+                                ...examForm,
+                                code: '',
+                                title: '',
+                                startTime: '',
+                                endTime: '',
+                              });
                             }}
                             className="text-xs text-red-600 font-semibold cursor-pointer"
                           >
@@ -3153,6 +3202,8 @@ export default function App() {
                                         examType: ex.examType,
                                         durationMinutes: ex.durationMinutes,
                                         totalQuestions: ex.totalQuestions,
+                                        startTime: ex.startTime || '',
+                                        endTime: ex.endTime || '',
                                         passingGrade: ex.passingGrade,
                                         randomizeQuestions: ex.randomizeQuestions,
                                         randomizeOptions: ex.randomizeOptions,
