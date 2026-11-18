@@ -1,12 +1,11 @@
 import { eq, desc, and, lt, inArray } from 'drizzle-orm';
 import fs from 'fs/promises';
 import path from 'path';
-import { createRequire } from 'module';
 import type { CbtSystemState } from '../types/cbt.ts';
 import { db, pool } from './index.ts';
+import initialSeedSnapshotJson from './initialSeedSnapshot.json' with { type: 'json' };
 
-const require = createRequire(import.meta.url);
-const initialSeedSnapshot = require('./initialSeedSnapshot.json') as CbtSystemState;
+const initialSeedSnapshot = initialSeedSnapshotJson as unknown as CbtSystemState;
 import {
   websiteSettings,
   roles,
@@ -2876,6 +2875,7 @@ export async function syncLocalStateToDatabase(
       return dbLectIdSet.has(rawId) ? rawId : null;
     };
 
+    const dbProdiIdSet = new Set(existingProdis.map((p) => p.id));
     const existingCourses = await db.select().from(courses);
     const courseByCode = new Map(
       existingCourses.map((c) => [c.code.trim().toLowerCase(), c.id])
@@ -2889,7 +2889,9 @@ export async function syncLocalStateToDatabase(
         const mappedProdiId =
           c.studyProgramId && prodiIdMap.has(c.studyProgramId)
             ? prodiIdMap.get(c.studyProgramId)!
-            : null;
+            : c.studyProgramId && dbProdiIdSet.has(c.studyProgramId)
+              ? c.studyProgramId
+              : null;
         const inserted = await db
           .insert(courses)
           .values({
@@ -3004,19 +3006,27 @@ export async function syncLocalStateToDatabase(
       const key = cleanCode.toLowerCase();
       let targetExamId = examByCode.get(key);
       if (!targetExamId) {
+        const dbCourseIdSet = new Set(
+          (await db.select({ id: courses.id }).from(courses)).map((c) => c.id)
+        );
+        const dbClassIdSet = new Set(existingClasses.map((cl) => cl.id));
         const mappedCourseId =
           ex.courseId && courseIdMap.has(ex.courseId)
             ? courseIdMap.get(ex.courseId)!
-            : null;
+            : ex.courseId && dbCourseIdSet.has(ex.courseId)
+              ? ex.courseId
+              : null;
         const mappedClassId =
           ex.classId && classIdMap.has(ex.classId)
             ? classIdMap.get(ex.classId)!
-            : null;
+            : ex.classId && dbClassIdSet.has(ex.classId)
+              ? ex.classId
+              : null;
         const createdExam = await createExamRecord({
           code: cleanCode,
           title: ex.title || cleanCode,
           courseId: mappedCourseId,
-          lecturerId: null,
+          lecturerId: resolveLecturerId(ex.lecturerId),
           classId: mappedClassId,
           examType: ex.examType || 'UTS',
           durationMinutes: ex.durationMinutes || 60,

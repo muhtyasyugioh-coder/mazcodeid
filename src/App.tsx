@@ -350,6 +350,9 @@ export default function App() {
           },
           body: JSON.stringify(localData),
         });
+        if (didLastWriteUseLocalFallback()) {
+          return;
+        }
         clearSavedLocalFallbackState();
         const s = syncRes?.synced || {};
         const totalSynced =
@@ -1284,7 +1287,62 @@ export default function App() {
             )}
 
             <button
-              onClick={() => fetchState()}
+              onClick={async () => {
+                try {
+                  const res = await fetch('/api/health', { cache: 'no-store' });
+                  const contentType = res.headers.get('content-type') || '';
+                  const info =
+                    res.ok && contentType.includes('application/json')
+                      ? await res.json()
+                      : null;
+
+                  if (!info?.ok || !info?.dbReachable || info?.mode === 'browser-fallback') {
+                    await fetchState();
+                    showToast(
+                      info?.mode === 'local-file-db'
+                        ? 'Server ini memakai database file lokal hosting (belum terhubung ke Supabase).'
+                        : 'URL ini belum terhubung ke database Supabase. Pasang DATABASE_URL pada environment server (Vercel/Hosting) lalu muat ulang.'
+                    );
+                    return;
+                  }
+
+                  let pushedCount = 0;
+                  const localData = getSavedLocalFallbackState();
+                  if (localData && (role === 'admin' || role === 'dosen')) {
+                    const syncRes = await executeApiRequest('/api/cbt/sync-local', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${authToken}`,
+                      },
+                      body: JSON.stringify(localData),
+                    });
+                    if (!didLastWriteUseLocalFallback()) {
+                      clearSavedLocalFallbackState();
+                      const s = syncRes?.synced || {};
+                      pushedCount =
+                        (s.faculties || 0) +
+                        (s.studyPrograms || 0) +
+                        (s.classes || 0) +
+                        (s.courses || 0) +
+                        (s.students || 0) +
+                        (s.questions || 0) +
+                        (s.exams || 0) +
+                        (s.results || 0);
+                    }
+                  }
+
+                  await fetchState();
+                  showToast(
+                    pushedCount > 0
+                      ? `Sinkronisasi selesai: ${pushedCount} data lokal dikirim & dimuat ulang dari Supabase.`
+                      : 'Data sudah tersinkron dengan database Supabase.'
+                  );
+                } catch (err: any) {
+                  await fetchState();
+                  showToast(err?.message || 'Gagal melakukan sinkronisasi dengan database.');
+                }
+              }}
               className="h-9 px-3 rounded-md border border-[#E2E8F0] hover:bg-[#F8FAFC] text-xs font-medium text-[#475569] flex items-center gap-1.5 cursor-pointer whitespace-nowrap shrink-0"
               title="Sinkronisasi Data"
             >
@@ -4161,6 +4219,12 @@ export default function App() {
                           }
                           try {
                             const res = await apiCall('/api/cbt/sync-local', 'POST', localData);
+                            if (didLastWriteUseLocalFallback()) {
+                              showToast(
+                                'Database Supabase belum terhubung di URL ini. Pastikan DATABASE_URL terpasang di server, atau unduh Backup (.json) lalu impor pada URL yang terhubung ke Supabase.'
+                              );
+                              return;
+                            }
                             clearSavedLocalFallbackState();
                             const s = res?.synced || {};
                             const total =
@@ -4202,6 +4266,12 @@ export default function App() {
                               const text = await file.text();
                               const parsed = JSON.parse(text);
                               const res = await apiCall('/api/cbt/sync-local', 'POST', parsed);
+                              if (didLastWriteUseLocalFallback()) {
+                                showToast(
+                                  'Data JSON hanya masuk ke browser lokal karena server di URL ini belum terhubung ke Supabase.'
+                                );
+                                return;
+                              }
                               const s = res?.synced || {};
                               const total =
                                 (s.faculties || 0) +

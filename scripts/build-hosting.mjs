@@ -64,7 +64,7 @@ OPSI 1: HOSTING BIASA / SHARED HOSTING (cPanel, Hostinger, Niagahoster, Rumahweb
 - Upload seluruh ISI folder "dist/" ke dalam folder "public_html/" di hosting Anda
   (pastikan file ".htaccess" ikut terupload).
 - Tidak memerlukan Node.js dan tidak memerlukan pengaturan Supabase.
-- Seluruh data awal (86 mahasiswa, 100 soal, 3 mata kuliah, 6 kelas, dan profil
+- Seluruh data awal (87 mahasiswa, 100 soal, 3 mata kuliah, 6 kelas, dan profil
   MAZCODEID CBT) sudah tersimpan otomatis dan langsung bisa dipakai.
 
 OPSI 2: HOSTING NODE.JS / VPS / cPanel "Setup Node.js App" (Multi-Device Tanpa Supabase)
