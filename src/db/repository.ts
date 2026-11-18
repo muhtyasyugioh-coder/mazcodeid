@@ -1616,6 +1616,89 @@ export async function createQuestionRecord(data: {
   }
 }
 
+export async function importQuestionRecords(
+  items: Array<{
+    courseId?: number | null;
+    examId?: number | null;
+    questionType: string;
+    difficulty: string;
+    questionText: string;
+    mediaType?: string;
+    mediaContent?: string;
+    weight: number;
+    correctAnswerKey: string;
+    explanation?: string;
+    options?: Array<{
+      optionLabel: string;
+      optionText: string;
+      isCorrect: boolean;
+    }>;
+  }>
+) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return [];
+  }
+
+  try {
+    const validPayloads = items.filter(
+      (item) => String(item?.questionText || '').trim().length > 0
+    );
+    if (validPayloads.length === 0) {
+      return [];
+    }
+
+    const insertedQuestions = await db
+      .insert(examQuestions)
+      .values(
+        validPayloads.map((data) => ({
+          courseId: data.courseId ? Number(data.courseId) : null,
+          examId: data.examId ? Number(data.examId) : null,
+          questionType: data.questionType || 'pilihan_ganda',
+          difficulty: data.difficulty || 'Sedang',
+          questionText: String(data.questionText).trim(),
+          mediaType: data.mediaType || 'none',
+          mediaContent: data.mediaContent || null,
+          weight: Number(data.weight) || 2,
+          correctAnswerKey: String(data.correctAnswerKey || 'A').trim(),
+          explanation: data.explanation || '',
+        }))
+      )
+      .returning();
+
+    const allOptionRows: Array<{
+      questionId: number;
+      optionLabel: string;
+      optionText: string;
+      isCorrect: boolean;
+    }> = [];
+
+    insertedQuestions.forEach((q, idx) => {
+      const opts = validPayloads[idx]?.options;
+      if (Array.isArray(opts) && opts.length > 0) {
+        for (const opt of opts) {
+          allOptionRows.push({
+            questionId: q.id,
+            optionLabel: opt.optionLabel,
+            optionText: opt.optionText,
+            isCorrect: Boolean(opt.isCorrect),
+          });
+        }
+      }
+    });
+
+    if (allOptionRows.length > 0) {
+      await db.insert(questionOptions).values(allOptionRows);
+    }
+
+    return insertedQuestions;
+  } catch (error) {
+    console.error('Failed to batch import questions:', error);
+    throw new Error('Gagal mengimpor butir soal ke database.', {
+      cause: error,
+    });
+  }
+}
+
 export async function updateQuestionRecord(
   questionId: number,
   data: {

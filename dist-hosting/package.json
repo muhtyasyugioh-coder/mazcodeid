@@ -1,0 +1,17 @@
+{
+  "name": "mazcodeid-smart-cbt-hosting",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.4",
+    "express": "^4.21.2",
+    "firebase-admin": "^14.5.1",
+    "pg": "^8.23.1",
+    "ws": "^8.23.0"
+  }
+}

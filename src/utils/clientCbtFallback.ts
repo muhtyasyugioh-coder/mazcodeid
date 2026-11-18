@@ -125,14 +125,27 @@ function nextId(items: Array<{ id: number }>): number {
   return items.reduce((max, item) => Math.max(max, Number(item.id) || 0), 0) + 1;
 }
 
+export interface LocalStateAdapter {
+  load: () => CbtSystemState;
+  save: (state: CbtSystemState) => void;
+}
+
 export function handleClientFallbackRequest(
   url: string,
   method: string,
-  body?: any
+  body?: any,
+  adapter?: LocalStateAdapter
 ): any {
   const cleanMethod = (method || 'GET').toUpperCase();
   const cleanPath = url.split('?')[0];
-  const state = loadFallbackState();
+  const state = adapter ? adapter.load() : loadFallbackState();
+  const persistState = (next: CbtSystemState) => {
+    if (adapter) {
+      adapter.save(next);
+    } else {
+      saveFallbackState(next);
+    }
+  };
 
   // 1. Public website settings
   if (cleanPath === '/api/public/website-settings' && cleanMethod === 'GET') {
@@ -191,6 +204,32 @@ export function handleClientFallbackRequest(
     return { user: userRecord, student: matchedStudent, token };
   }
 
+  // 3b. OAuth / Firebase User Sync
+  if (cleanPath === '/api/auth/sync' && cleanMethod === 'POST') {
+    const cleanEmail = String(body?.email || 'muhtyasyugi@unikma.ac.id')
+      .trim()
+      .toLowerCase();
+    let user = state.users.find((u) => u.email.toLowerCase() === cleanEmail);
+    if (!user) {
+      const roleName = (body?.preferredRole || 'admin') as 'admin' | 'dosen' | 'mahasiswa';
+      user = {
+        id: nextId(state.users),
+        uid: body?.uid || `uid-sync-${Date.now()}`,
+        email: cleanEmail,
+        passwordHash: 'muhtyasyugi@123',
+        fullName: body?.fullName || cleanEmail.split('@')[0],
+        roleId: roleName === 'admin' ? 1 : roleName === 'dosen' ? 2 : 3,
+        roleName,
+        avatarUrl: '',
+        isActive: true,
+        createdAt: new Date().toISOString(),
+      };
+      state.users.push(user);
+      persistState(state);
+    }
+    return { user };
+  }
+
   // 4. Full System State
   if (cleanPath === '/api/cbt/state' && cleanMethod === 'GET') {
     return state;
@@ -219,7 +258,7 @@ export function handleClientFallbackRequest(
       updatedAt: new Date().toISOString(),
     };
     state.websiteSettings.unshift(created);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
 
@@ -240,13 +279,13 @@ export function handleClientFallbackRequest(
           id,
           updatedAt: new Date().toISOString(),
         };
-        saveFallbackState(state);
+        persistState(state);
         return state.websiteSettings[idx];
       }
     }
     if (cleanMethod === 'DELETE') {
       state.websiteSettings = state.websiteSettings.filter((w) => w.id !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -260,7 +299,7 @@ export function handleClientFallbackRequest(
       deanName: String(body?.deanName || '').trim(),
     };
     state.faculties.push(created);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
   const facultyMatch = /^\/api\/cbt\/faculties\/(\d+)$/.exec(cleanPath);
@@ -270,13 +309,13 @@ export function handleClientFallbackRequest(
       const idx = state.faculties.findIndex((f) => f.id === id);
       if (idx !== -1) {
         state.faculties[idx] = { ...state.faculties[idx], ...body, id };
-        saveFallbackState(state);
+        persistState(state);
         return state.faculties[idx];
       }
     }
     if (cleanMethod === 'DELETE') {
       state.faculties = state.faculties.filter((f) => f.id !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -292,7 +331,7 @@ export function handleClientFallbackRequest(
       headName: String(body?.headName || '').trim(),
     };
     state.studyPrograms.push(created);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
   const prodiMatch = /^\/api\/cbt\/study-programs\/(\d+)$/.exec(cleanPath);
@@ -307,13 +346,13 @@ export function handleClientFallbackRequest(
           facultyId: body?.facultyId ? Number(body.facultyId) : null,
           id,
         };
-        saveFallbackState(state);
+        persistState(state);
         return state.studyPrograms[idx];
       }
     }
     if (cleanMethod === 'DELETE') {
       state.studyPrograms = state.studyPrograms.filter((p) => p.id !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -330,7 +369,7 @@ export function handleClientFallbackRequest(
       capacity: Number(body?.capacity) || 40,
     };
     state.classes.push(created);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
   const classMatch = /^\/api\/cbt\/classes\/(\d+)$/.exec(cleanPath);
@@ -347,13 +386,13 @@ export function handleClientFallbackRequest(
           capacity: Number(body?.capacity) || 40,
           id,
         };
-        saveFallbackState(state);
+        persistState(state);
         return state.classes[idx];
       }
     }
     if (cleanMethod === 'DELETE') {
       state.classes = state.classes.filter((c) => c.id !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -371,7 +410,7 @@ export function handleClientFallbackRequest(
       description: body?.description || '',
     };
     state.courses.push(created);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
   const courseMatch = /^\/api\/cbt\/courses\/(\d+)$/.exec(cleanPath);
@@ -389,13 +428,13 @@ export function handleClientFallbackRequest(
           lecturerId: body?.lecturerId ? Number(body.lecturerId) : null,
           id,
         };
-        saveFallbackState(state);
+        persistState(state);
         return state.courses[idx];
       }
     }
     if (cleanMethod === 'DELETE') {
       state.courses = state.courses.filter((c) => c.id !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -450,7 +489,7 @@ export function handleClientFallbackRequest(
 
   if (cleanPath === '/api/cbt/students' && cleanMethod === 'POST') {
     const created = createSingleStudentInFallback(body);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
 
@@ -469,7 +508,7 @@ export function handleClientFallbackRequest(
         });
       }
     }
-    saveFallbackState(state);
+    persistState(state);
     return {
       importedCount: createdItems.length,
       skippedCount: errors.length,
@@ -506,7 +545,7 @@ export function handleClientFallbackRequest(
             avatarUrl: body?.avatarUrl ?? state.users[uIdx].avatarUrl,
           };
         }
-        saveFallbackState(state);
+        persistState(state);
         return state.students[idx];
       }
     }
@@ -516,7 +555,7 @@ export function handleClientFallbackRequest(
       if (target) {
         state.users = state.users.filter((u) => u.id !== target.userId);
       }
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -563,7 +602,7 @@ export function handleClientFallbackRequest(
         avatarUrl: created.avatarUrl,
       });
     }
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
 
@@ -590,7 +629,7 @@ export function handleClientFallbackRequest(
           avatarUrl: body?.avatarUrl ?? current.avatarUrl,
           isActive: body?.isActive ?? current.isActive,
         };
-        saveFallbackState(state);
+        persistState(state);
         return state.users[idx];
       }
     }
@@ -598,7 +637,7 @@ export function handleClientFallbackRequest(
       state.users = state.users.filter((u) => u.id !== id);
       state.lecturers = state.lecturers.filter((l) => l.userId !== id);
       state.students = state.students.filter((s) => s.userId !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -635,7 +674,7 @@ export function handleClientFallbackRequest(
       options: buildQuestionOptions(id, body?.options || []),
     };
     state.questions.push(created);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
 
@@ -660,8 +699,8 @@ export function handleClientFallbackRequest(
       state.questions.push(q);
       return q;
     });
-    saveFallbackState(state);
-    return { imported: createdList.length, items: createdList };
+    persistState(state);
+    return { importedCount: createdList.length, items: createdList };
   }
 
   const questionMatch = /^\/api\/cbt\/questions\/(\d+)$/.exec(cleanPath);
@@ -679,13 +718,13 @@ export function handleClientFallbackRequest(
           options: buildQuestionOptions(id, body?.options || []),
           id,
         };
-        saveFallbackState(state);
+        persistState(state);
         return state.questions[idx];
       }
     }
     if (cleanMethod === 'DELETE') {
       state.questions = state.questions.filter((q) => q.id !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -717,32 +756,50 @@ export function handleClientFallbackRequest(
       resultsPublished: Boolean(body?.resultsPublished ?? true),
     };
     state.exams.push(created);
-    saveFallbackState(state);
+    persistState(state);
     return created;
   }
 
   const examMatch = /^\/api\/cbt\/exams\/(\d+)$/.exec(cleanPath);
   if (examMatch) {
     const id = Number(examMatch[1]);
-    if (cleanMethod === 'PUT') {
+    if (cleanMethod === 'PUT' || cleanMethod === 'PATCH') {
       const idx = state.exams.findIndex((e) => e.id === id);
       if (idx !== -1) {
         state.exams[idx] = {
           ...state.exams[idx],
           ...body,
-          courseId: body?.courseId ? Number(body.courseId) : null,
-          lecturerId: body?.lecturerId ? Number(body.lecturerId) : null,
-          classId: body?.classId ? Number(body.classId) : null,
-          durationMinutes: Number(body?.durationMinutes) || 90,
+          courseId:
+            body?.courseId !== undefined
+              ? body.courseId
+                ? Number(body.courseId)
+                : null
+              : state.exams[idx].courseId,
+          lecturerId:
+            body?.lecturerId !== undefined
+              ? body.lecturerId
+                ? Number(body.lecturerId)
+                : null
+              : state.exams[idx].lecturerId,
+          classId:
+            body?.classId !== undefined
+              ? body.classId
+                ? Number(body.classId)
+                : null
+              : state.exams[idx].classId,
+          durationMinutes:
+            body?.durationMinutes !== undefined
+              ? Number(body.durationMinutes) || 90
+              : state.exams[idx].durationMinutes,
           id,
         };
-        saveFallbackState(state);
+        persistState(state);
         return state.exams[idx];
       }
     }
     if (cleanMethod === 'DELETE') {
       state.exams = state.exams.filter((e) => e.id !== id);
-      saveFallbackState(state);
+      persistState(state);
       return { deleted: true };
     }
   }
@@ -774,7 +831,7 @@ export function handleClientFallbackRequest(
         lastActiveAt: new Date().toISOString(),
       };
       state.sessions.push(existing);
-      saveFallbackState(state);
+      persistState(state);
     }
     return existing;
   }
@@ -800,14 +857,14 @@ export function handleClientFallbackRequest(
       capturedAt: new Date().toISOString(),
     };
     state.snapshots.unshift(snap);
-    saveFallbackState(state);
+    persistState(state);
     return snap;
   }
 
   if (cleanPath === '/api/cbt/snapshots/purge' && cleanMethod === 'POST') {
     const deletedCount = state.snapshots.length;
     state.snapshots = [];
-    saveFallbackState(state);
+    persistState(state);
     return { deletedCount };
   }
 
@@ -815,7 +872,7 @@ export function handleClientFallbackRequest(
   if (snapDeleteMatch && cleanMethod === 'DELETE') {
     const id = Number(snapDeleteMatch[1]);
     state.snapshots = state.snapshots.filter((s) => s.id !== id);
-    saveFallbackState(state);
+    persistState(state);
     return { deleted: true };
   }
 
@@ -848,7 +905,7 @@ export function handleClientFallbackRequest(
       detectedAt: new Date().toISOString(),
     };
     state.violations.unshift(violation);
-    saveFallbackState(state);
+    persistState(state);
     return { violation, warning, session };
   }
 
@@ -864,7 +921,7 @@ export function handleClientFallbackRequest(
     if (v) {
       v.verifiedByAdmin = true;
       v.actionTaken = body?.actionTaken || 'Diverifikasi Pengawas';
-      saveFallbackState(state);
+      persistState(state);
     }
     return v || { verified: true };
   }
@@ -895,7 +952,7 @@ export function handleClientFallbackRequest(
     } else {
       state.answers.push(record);
     }
-    saveFallbackState(state);
+    persistState(state);
     return record;
   }
 
@@ -949,7 +1006,7 @@ export function handleClientFallbackRequest(
       submittedAt: new Date().toISOString(),
     };
     state.results.unshift(resultRecord);
-    saveFallbackState(state);
+    persistState(state);
     return { result: resultRecord, evaluation: evalSummary };
   }
 
@@ -962,7 +1019,28 @@ export function handleClientFallbackRequest(
       r.gradeLetter = computeGradeLetter(r.finalScore);
       r.verificationStatus = body?.verificationStatus || 'Sudah Diverifikasi';
       r.isPublished = body?.isPublished ?? true;
-      saveFallbackState(state);
+      persistState(state);
+    }
+    return r || { saved: true };
+  }
+
+  const resultPatchMatch = /^\/api\/cbt\/results\/(\d+)$/.exec(cleanPath);
+  if (resultPatchMatch && cleanMethod === 'PATCH') {
+    const resultId = Number(resultPatchMatch[1]);
+    const r = state.results.find((item) => item.id === resultId);
+    if (r) {
+      if (body?.essayScore !== undefined) {
+        r.essayScore = Number(body.essayScore) || 0;
+        r.finalScore = Math.min(100, r.objectiveScore + r.essayScore);
+        r.gradeLetter = computeGradeLetter(r.finalScore);
+      }
+      if (body?.verificationStatus !== undefined) {
+        r.verificationStatus = body.verificationStatus;
+      }
+      if (body?.isPublished !== undefined) {
+        r.isPublished = Boolean(body.isPublished);
+      }
+      persistState(state);
     }
     return r || { saved: true };
   }

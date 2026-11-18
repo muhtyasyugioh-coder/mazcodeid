@@ -315,53 +315,73 @@ export default function App() {
     }
   }, []);
 
-  // Connect WebSocket for real-time monitoring events
+  // Connect WebSocket for real-time monitoring events when Node server is available
   useEffect(() => {
     if (!authToken) return;
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws-proctoring`;
-    const ws = new WebSocket(wsUrl);
-    wsRef.current = ws;
+    let cancelled = false;
+    let ws: WebSocket | null = null;
 
-    ws.onmessage = (event) => {
+    const connectIfSupported = async () => {
       try {
-        const msg = JSON.parse(event.data);
-        if (msg.type === 'VIOLATION_DETECTED') {
-          setLiveNotifications((prev) => [
-            {
-              id: `${Date.now()}-${Math.random()}`,
-              text: `Pelanggaran (${msg.payload.violationType}) — ${msg.payload.studentName} (${msg.payload.nim})`,
-              time: new Date().toLocaleTimeString('id-ID'),
-              level: 'danger',
-            },
-            ...prev.slice(0, 6),
-          ]);
-          fetchState();
-        } else if (msg.type === 'SNAPSHOT_CAPTURED') {
-          setLiveNotifications((prev) => [
-            {
-              id: `${Date.now()}-${Math.random()}`,
-              text: `Snapshot #${msg.payload.sequenceNumber} berhasil disimpan — ${msg.payload.studentName}`,
-              time: new Date().toLocaleTimeString('id-ID'),
-              level: 'info',
-            },
-            ...prev.slice(0, 6),
-          ]);
-          fetchState();
-        } else if (
-          msg.type === 'SESSION_UPDATED' ||
-          msg.type === 'EXAM_SUBMITTED' ||
-          msg.type === 'VIOLATION_VERIFIED'
-        ) {
-          fetchState();
-        }
+        const res = await fetch('/api/health');
+        const contentType = res.headers.get('content-type') || '';
+        if (!res.ok || !contentType.includes('application/json')) return;
+        const info = await res.json();
+        if (!info?.ok || info?.mode === 'browser-fallback' || cancelled) return;
       } catch {
-        // Ignore non-JSON messages
+        return;
       }
+
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${protocol}//${window.location.host}/ws-proctoring`;
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
+
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          if (msg.type === 'VIOLATION_DETECTED') {
+            setLiveNotifications((prev) => [
+              {
+                id: `${Date.now()}-${Math.random()}`,
+                text: `Pelanggaran (${msg.payload.violationType}) — ${msg.payload.studentName} (${msg.payload.nim})`,
+                time: new Date().toLocaleTimeString('id-ID'),
+                level: 'danger',
+              },
+              ...prev.slice(0, 6),
+            ]);
+            fetchState();
+          } else if (msg.type === 'SNAPSHOT_CAPTURED') {
+            setLiveNotifications((prev) => [
+              {
+                id: `${Date.now()}-${Math.random()}`,
+                text: `Snapshot #${msg.payload.sequenceNumber} berhasil disimpan — ${msg.payload.studentName}`,
+                time: new Date().toLocaleTimeString('id-ID'),
+                level: 'info',
+              },
+              ...prev.slice(0, 6),
+            ]);
+            fetchState();
+          } else if (
+            msg.type === 'SESSION_UPDATED' ||
+            msg.type === 'EXAM_SUBMITTED' ||
+            msg.type === 'VIOLATION_VERIFIED'
+          ) {
+            fetchState();
+          }
+        } catch {
+          // Ignore non-JSON messages
+        }
+      };
     };
 
+    connectIfSupported();
+
     return () => {
-      ws.close();
+      cancelled = true;
+      if (ws) {
+        ws.close();
+      }
     };
   }, [authToken, fetchState]);
 
@@ -2900,89 +2920,157 @@ export default function App() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                        <input
-                          type="text"
-                          required
-                          placeholder="Kode Ujian (CBT-2026-01)"
-                          value={examForm.code}
-                          onChange={(e) =>
-                            setExamForm({ ...examForm, code: e.target.value })
-                          }
-                          className="h-10 px-3 rounded-md border border-[#CBD5E1] text-xs"
-                        />
-                        <input
-                          type="text"
-                          required
-                          placeholder="Judul Ujian Lengkap"
-                          value={examForm.title}
-                          onChange={(e) =>
-                            setExamForm({ ...examForm, title: e.target.value })
-                          }
-                          className="h-10 px-3 rounded-md border border-[#CBD5E1] text-xs md:col-span-2"
-                        />
-                        <select
-                          value={examForm.courseId}
-                          onChange={(e) =>
-                            setExamForm({
-                              ...examForm,
-                              courseId: Number(e.target.value),
-                            })
-                          }
-                          className="h-10 px-3 rounded-md border border-[#CBD5E1] text-xs"
-                        >
-                          <option value={0}>-- Pilih Mata Kuliah --</option>
-                          {state.courses.map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {c.code} - {c.name}
-                            </option>
-                          ))}
-                        </select>
-                        <select
-                          value={examForm.examType}
-                          onChange={(e) =>
-                            setExamForm({ ...examForm, examType: e.target.value })
-                          }
-                          className="h-10 px-3 rounded-md border border-[#CBD5E1] text-xs"
-                        >
-                          <option value="UTS">Ujian Tengah Semester (UTS)</option>
-                          <option value="UAS">Ujian Akhir Semester (UAS)</option>
-                          <option value="Kuis">Kuis Evaluasi</option>
-                        </select>
-                        <input
-                          type="number"
-                          min={10}
-                          max={240}
-                          value={examForm.durationMinutes}
-                          onChange={(e) =>
-                            setExamForm({
-                              ...examForm,
-                              durationMinutes: Number(e.target.value),
-                            })
-                          }
-                          placeholder="Durasi (Menit)"
-                          className="h-10 px-3 rounded-md border border-[#CBD5E1] text-xs"
-                        />
-                        <label className="flex items-center gap-2 text-xs text-[#0F172A] px-2">
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#475569] mb-1">
+                            Kode Ujian
+                          </label>
                           <input
-                            type="checkbox"
-                            checked={examForm.randomizeQuestions}
+                            type="text"
+                            required
+                            placeholder="Contoh: CBT-2026-01"
+                            value={examForm.code}
+                            onChange={(e) =>
+                              setExamForm({ ...examForm, code: e.target.value })
+                            }
+                            className="w-full h-10 px-3 rounded-md border border-[#CBD5E1] text-xs"
+                          />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#475569] mb-1">
+                            Judul Ujian Lengkap
+                          </label>
+                          <input
+                            type="text"
+                            required
+                            placeholder="Contoh: UTS Sistem Terdistribusi"
+                            value={examForm.title}
+                            onChange={(e) =>
+                              setExamForm({ ...examForm, title: e.target.value })
+                            }
+                            className="w-full h-10 px-3 rounded-md border border-[#CBD5E1] text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#475569] mb-1">
+                            Mata Kuliah
+                          </label>
+                          <select
+                            value={examForm.courseId}
                             onChange={(e) =>
                               setExamForm({
                                 ...examForm,
-                                randomizeQuestions: e.target.checked,
+                                courseId: Number(e.target.value),
                               })
                             }
-                          />
-                          Acak Soal & Opsi
-                        </label>
-                        <button
-                          type="submit"
-                          className="h-10 px-4 bg-[#F97316] hover:bg-[#EA580C] text-white rounded-md text-xs font-semibold cursor-pointer"
-                        >
-                          {editingExamId
-                            ? 'Simpan Perubahan Ujian'
-                            : '+ Terbitkan Jadwal Ujian'}
-                        </button>
+                            className="w-full h-10 px-3 rounded-md border border-[#CBD5E1] text-xs bg-white"
+                          >
+                            <option value={0}>-- Pilih Mata Kuliah --</option>
+                            {state.courses.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.code} - {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#475569] mb-1">
+                            Jenis Ujian
+                          </label>
+                          <select
+                            value={examForm.examType}
+                            onChange={(e) =>
+                              setExamForm({ ...examForm, examType: e.target.value })
+                            }
+                            className="w-full h-10 px-3 rounded-md border border-[#CBD5E1] text-xs bg-white"
+                          >
+                            <option value="UTS">Ujian Tengah Semester (UTS)</option>
+                            <option value="UAS">Ujian Akhir Semester (UAS)</option>
+                            <option value="Kuis">Kuis Evaluasi</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#475569] mb-1">
+                            Waktu / Durasi Ujian (Menit)
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min={5}
+                              max={300}
+                              required
+                              value={examForm.durationMinutes || ''}
+                              onChange={(e) =>
+                                setExamForm({
+                                  ...examForm,
+                                  durationMinutes:
+                                    e.target.value === ''
+                                      ? 0
+                                      : Number(e.target.value),
+                                })
+                              }
+                              placeholder="60"
+                              className="w-full h-10 pl-3 pr-14 rounded-md border border-[#CBD5E1] text-xs font-mono tabular-nums"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[#64748B] pointer-events-none">
+                              Menit
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#475569] mb-1">
+                            Jumlah Soal
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min={1}
+                              max={200}
+                              required
+                              value={examForm.totalQuestions || ''}
+                              onChange={(e) =>
+                                setExamForm({
+                                  ...examForm,
+                                  totalQuestions:
+                                    e.target.value === ''
+                                      ? 0
+                                      : Number(e.target.value),
+                                })
+                              }
+                              placeholder="50"
+                              className="w-full h-10 pl-3 pr-12 rounded-md border border-[#CBD5E1] text-xs font-mono tabular-nums"
+                            />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] font-semibold text-[#64748B] pointer-events-none">
+                              Soal
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="flex flex-col justify-end gap-2">
+                          <label className="flex items-center gap-2 text-xs text-[#0F172A] px-1">
+                            <input
+                              type="checkbox"
+                              checked={examForm.randomizeQuestions}
+                              onChange={(e) =>
+                                setExamForm({
+                                  ...examForm,
+                                  randomizeQuestions: e.target.checked,
+                                })
+                              }
+                            />
+                            Acak Soal & Opsi
+                          </label>
+                          <button
+                            type="submit"
+                            className="h-10 px-4 bg-[#F97316] hover:bg-[#EA580C] text-white rounded-md text-xs font-semibold cursor-pointer"
+                          >
+                            {editingExamId
+                              ? 'Simpan Perubahan Ujian'
+                              : '+ Terbitkan Jadwal Ujian'}
+                          </button>
+                        </div>
                       </div>
                     </form>
                   )}
@@ -3015,11 +3103,17 @@ export default function App() {
                               <p className="text-xs text-[#475569] mt-0.5">
                                 Mata Kuliah: {course?.name || 'Umum'}
                               </p>
-                              <div className="mt-3 pt-3 border-t border-[#E2E8F0] grid grid-cols-3 gap-2 text-xs">
+                              <div className="mt-3 pt-3 border-t border-[#E2E8F0] grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
                                 <div>
                                   <span className="text-[#64748B] block">Durasi</span>
                                   <span className="font-mono font-bold">
                                     {ex.durationMinutes} Menit
+                                  </span>
+                                </div>
+                                <div>
+                                  <span className="text-[#64748B] block">Jumlah Soal</span>
+                                  <span className="font-mono font-bold">
+                                    {ex.totalQuestions} Soal
                                   </span>
                                 </div>
                                 <div>
@@ -3858,6 +3952,39 @@ export default function App() {
                         </div>
                       ))}
                     </div>
+                  </div>
+
+                  {/* Portable JSON Backup Export */}
+                  <div className="bg-white border border-[#E2E8F0] rounded-lg p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-sm font-bold text-[#0F172A]">
+                        Ekspor Cadangan Data Sistem (.json)
+                      </h3>
+                      <p className="text-xs text-[#475569] mt-0.5">
+                        Unduh salinan lengkap data mahasiswa, mata kuliah, soal, jadwal ujian, dan hasil evaluasi dalam satu file JSON.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify(state, null, 2)], {
+                          type: 'application/json',
+                        });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `Backup_MazCodeID_CBT_${new Date().toISOString().slice(0, 10)}.json`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                        showToast('Cadangan data JSON berhasil diunduh.');
+                      }}
+                      className="h-9 px-4 bg-[#0F172A] hover:bg-[#1E293B] text-white rounded-md text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      Download Backup (.json)
+                    </button>
                   </div>
                 </div>
               )}

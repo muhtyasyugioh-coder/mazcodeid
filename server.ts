@@ -2,9 +2,12 @@ import express from 'express';
 import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import * as dotenv from 'dotenv';
 import { requireAuth, AuthRequest } from './src/middleware/auth.ts';
-import { hasDatabaseConfig } from './src/db/index.ts';
+import { hasDatabaseConfig, getConnectionString } from './src/db/index.ts';
+import { handleLocalFileApiRequest } from './src/db/localFileStore.ts';
 import {
   ensureSeeded,
   authenticateWithCredentials,
@@ -34,6 +37,7 @@ import {
   deleteStudentRecord,
   importStudentsBatch,
   createQuestionRecord,
+  importQuestionRecords,
   updateQuestionRecord,
   deleteQuestionRecord,
   createExamRecord,
@@ -67,13 +71,32 @@ const uploadsDir = process.env.VERCEL
   : path.resolve(process.cwd(), 'uploads');
 app.use('/uploads', express.static(uploadsDir, { maxAge: '1d' }));
 
-// Fast check for Vercel deployments where SQL_HOST / DATABASE_URL is not configured yet
-app.use('/api', (_req, res, next) => {
+// Lightweight health check without exposing secrets
+app.get('/api/health', (_req, res) => {
+  const conn = getConnectionString();
+  const mode = hasDatabaseConfig()
+    ? conn?.includes('supabase')
+      ? 'supabase'
+      : 'postgres'
+    : process.env.VERCEL
+      ? 'browser-fallback'
+      : 'local-file-db';
+  res.json({ ok: true, mode });
+});
+
+// Automatic database routing:
+// - If Supabase / PostgreSQL env vars are set -> uses PostgreSQL (Supabase/Cloud SQL)
+// - On personal Node.js hosting without Supabase env vars -> uses persistent local JSON file DB (./data/mazcodeid-cbt-db.json)
+// - On Vercel without DB env vars -> triggers client browser fallback cleanly
+app.use('/api', (req, res, next) => {
   if (!hasDatabaseConfig()) {
-    return res.status(503).json({
-      vercelFallbackRequired: true,
-      error: 'Database eksternal belum dikonfigurasi pada environment ini.',
-    });
+    if (process.env.VERCEL) {
+      return res.status(503).json({
+        vercelFallbackRequired: true,
+        error: 'Database eksternal belum dikonfigurasi pada environment ini.',
+      });
+    }
+    return handleLocalFileApiRequest(req, res);
   }
   next();
 });
@@ -587,13 +610,9 @@ function registerRoutes() {
     async (req: AuthRequest, res) => {
       try {
         const { items } = req.body;
-        const createdList = [];
-        if (Array.isArray(items)) {
-          for (const item of items) {
-            const q = await createQuestionRecord(item);
-            createdList.push(q);
-          }
-        }
+        const createdList = Array.isArray(items)
+          ? await importQuestionRecords(items)
+          : [];
         broadcastEvent('state:refresh', { entity: 'questions' });
         res.json({ importedCount: createdList.length, items: createdList });
       } catch (error: any) {
@@ -896,7 +915,12 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    const cwdDist = path.join(process.cwd(), 'dist');
+    const fileDirDist = path.resolve(
+      path.dirname(fileURLToPath(import.meta.url)),
+      'dist'
+    );
+    const distPath = fs.existsSync(cwdDist) ? cwdDist : fileDirDist;
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));

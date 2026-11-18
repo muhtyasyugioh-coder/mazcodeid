@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   Plus,
   Download,
@@ -10,9 +10,19 @@ import {
   CheckCircle2,
   BookOpen,
   Image as ImageIcon,
+  FileSpreadsheet,
+  FileUp,
+  AlertCircle,
+  X,
 } from 'lucide-react';
 import { CbtSystemState, QuestionRecord } from '../types/cbt';
-import { exportQuestionsToExcel } from '../utils/exportHelpers';
+import {
+  downloadMultipleChoice50Template,
+  exportQuestionsToExcelWithOptions,
+  mapRowsToQuestionImportPayloads,
+  parseQuestionImportFile,
+  QuestionImportParseResult,
+} from '../utils/questionImportExport';
 
 interface QuestionBankManagerProps {
   state: CbtSystemState;
@@ -40,6 +50,15 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({
     null
   );
   const [showImportModal, setShowImportModal] = useState<boolean>(false);
+  const [importMode, setImportMode] = useState<'excel' | 'text'>('excel');
+  const [importDefaultCourseId, setImportDefaultCourseId] = useState<string>(
+    state.courses[0]?.id ? String(state.courses[0].id) : ''
+  );
+  const [importFileName, setImportFileName] = useState<string>('');
+  const [importParseResult, setImportParseResult] =
+    useState<QuestionImportParseResult | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importFileInputRef = useRef<HTMLInputElement | null>(null);
   const [csvImportText, setCsvImportText] = useState<string>('');
 
   // Form state for Create & Update
@@ -207,10 +226,91 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({
     }
   };
 
+  const resetImportModalState = () => {
+    setImportFileName('');
+    setImportParseResult(null);
+    setImportError(null);
+    setCsvImportText('');
+    if (importFileInputRef.current) {
+      importFileInputRef.current.value = '';
+    }
+  };
+
+  const handleDownload50Template = () => {
+    const activeCourseId =
+      selectedCourseFilter !== 'all'
+        ? Number(selectedCourseFilter)
+        : importDefaultCourseId
+          ? Number(importDefaultCourseId)
+          : state.courses[0]?.id || null;
+    downloadMultipleChoice50Template(state.courses, activeCourseId);
+    setFeedbackMsg(
+      'Template 50 Soal Pilihan Ganda (Excel) berhasil diunduh.'
+    );
+    setTimeout(() => setFeedbackMsg(''), 4000);
+  };
+
+  const handleQuestionFileSelected = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportError(null);
+    setImportFileName(file.name);
+    try {
+      const rawRows = await parseQuestionImportFile(file);
+      const parsed = mapRowsToQuestionImportPayloads(rawRows, {
+        courses: state.courses,
+        defaultCourseId: importDefaultCourseId
+          ? Number(importDefaultCourseId)
+          : state.courses[0]?.id || null,
+        defaultExamId: state.exams[0]?.id || null,
+      });
+      setImportParseResult(parsed);
+      if (parsed.previewRows.length === 0) {
+        setImportError(
+          'Belum ada soal yang terisi pada file tersebut (semua baris masih kosong). Isi minimal 1 baris soal beserta Opsi A-D & Kunci Jawaban.'
+        );
+      }
+    } catch (err: any) {
+      setImportParseResult(null);
+      setImportError(
+        err.message ||
+          'Gagal membaca file Excel/CSV. Gunakan Template 50 Soal PG resmi.'
+      );
+    }
+  };
+
   const handleImportSubmit = async () => {
+    setImportError(null);
+    if (importMode === 'excel') {
+      if (!importParseResult || importParseResult.validItems.length === 0) {
+        return;
+      }
+      setSubmitting(true);
+      try {
+        const count = importParseResult.validItems.length;
+        await onImportQuestions(importParseResult.validItems);
+        resetImportModalState();
+        setShowImportModal(false);
+        setFeedbackMsg(
+          `${count} butir soal pilihan ganda berhasil diimpor ke Bank Soal.`
+        );
+        setTimeout(() => setFeedbackMsg(''), 4000);
+      } catch (err: any) {
+        setImportError(err.message || 'Gagal mengimpor soal ke database.');
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
+
     if (!csvImportText.trim()) return;
     setSubmitting(true);
     try {
+      const resolvedCourseId = importDefaultCourseId
+        ? Number(importDefaultCourseId)
+        : state.courses[0]?.id || null;
       const lines = csvImportText
         .split('\n')
         .map((l) => l.trim())
@@ -220,11 +320,12 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({
         const qType = parts[0] || 'pilihan_ganda';
         const diff = parts[1] || 'Sedang';
         const qText = parts[2] || line;
-        const w = Number(parts[3]) || 10;
+        const w = Number(parts[3]) || 2;
         const key = parts[4] || 'A';
         const exp = parts[5] || '';
         return {
-          courseId: state.courses[0]?.id || null,
+          courseId: resolvedCourseId,
+          examId: state.exams[0]?.id || null,
           questionType: qType,
           difficulty: diff,
           questionText: qText,
@@ -264,12 +365,14 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({
         };
       });
       await onImportQuestions(items);
-      setCsvImportText('');
+      resetImportModalState();
       setShowImportModal(false);
       setFeedbackMsg(
         `${items.length} butir soal berhasil diimpor ke Bank Soal.`
       );
       setTimeout(() => setFeedbackMsg(''), 4000);
+    } catch (err: any) {
+      setImportError(err.message || 'Gagal mengimpor soal.');
     } finally {
       setSubmitting(false);
     }
@@ -327,8 +430,21 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({
 
           <button
             type="button"
-            onClick={() => setShowImportModal(true)}
-            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+            onClick={handleDownload50Template}
+            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-orange-500" />
+            Template 50 Soal PG
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              resetImportModalState();
+              setImportMode('excel');
+              setShowImportModal(true);
+            }}
+            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Upload className="w-4 h-4" />
             Import Soal
@@ -336,8 +452,10 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({
 
           <button
             type="button"
-            onClick={() => exportQuestionsToExcel(filteredQuestions)}
-            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+            onClick={() =>
+              exportQuestionsToExcelWithOptions(filteredQuestions, state.courses)
+            }
+            className="px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Download className="w-4 h-4" />
             Export Excel
@@ -898,47 +1016,279 @@ export const QuestionBankManager: React.FC<QuestionBankManagerProps> = ({
         </div>
       )}
 
-      {/* Import Modal */}
+      {/* Import Modal (Excel Template 50 Soal PG + CSV Teks) */}
       {showImportModal && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Import Soal"
-          className="fixed inset-0 z-50 bg-slate-950/60 flex items-center justify-center p-3 sm:p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-[1px] flex items-center justify-center p-3 sm:p-4"
         >
-          <div className="bg-white border border-slate-200 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-4 shadow-xl">
-            <h3 className="text-base font-bold text-slate-900">
-              Import Soal Massal (Format Baris Pipa / CSV)
-            </h3>
-            <p className="text-xs text-slate-600 leading-relaxed">
-              Masukkan 1 soal per baris dengan format:{' '}
-              <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">
-                Tipe | Kesulitan | Pertanyaan | Bobot | Kunci | Pembahasan |
-                Opsi A | Opsi B | Opsi C | Opsi D | Opsi E
-              </code>
-            </p>
-            <textarea
-              rows={5}
-              value={csvImportText}
-              onChange={(e) => setCsvImportText(e.target.value)}
-              placeholder="pilihan_ganda | Mudah | Apa protokol standar HTTPS? | 10 | A | TLS mengamankan HTTP | TLS 1.3 | FTP | Telnet | SMTP | SNMP"
-              className="w-full p-3 text-xs font-mono border border-slate-300 rounded-lg"
-            />
-            <div className="flex justify-end gap-2 pt-2">
+          <div className="bg-white border border-slate-200 rounded-xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden shadow-xl">
+            <div className="px-4 sm:px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <FileUp className="w-5 h-5 text-orange-500 shrink-0" />
+                <div className="min-w-0">
+                  <h3 className="text-base font-bold text-slate-900 truncate">
+                    Import Soal Massal (Template 50 Soal PG &amp; Excel / CSV)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Unduh template 50 soal pilihan ganda (.xlsx), isi soal dan opsi jawaban A–E, lalu unggah untuk masuk otomatis ke database.
+                  </p>
+                </div>
+              </div>
               <button
                 type="button"
-                onClick={() => setShowImportModal(false)}
-                className="px-4 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg"
+                aria-label="Tutup modal import soal"
+                onClick={() => {
+                  if (!submitting) {
+                    setShowImportModal(false);
+                    resetImportModalState();
+                  }
+                }}
+                className="p-1.5 rounded-md text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
+              {/* Mode Switcher */}
+              <div className="grid grid-cols-2 gap-1 p-1 bg-slate-100 rounded-lg">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportMode('excel');
+                    setImportError(null);
+                  }}
+                  className={`py-2 px-3 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                    importMode === 'excel'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Upload File Excel / CSV (.xlsx)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setImportMode('text');
+                    setImportError(null);
+                  }}
+                  className={`py-2 px-3 rounded-md text-xs font-semibold transition-colors cursor-pointer ${
+                    importMode === 'text'
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  Paste Teks Cepat (Format Pipa |)
+                </button>
+              </div>
+
+              {/* Default Course Selector */}
+              <div>
+                <label
+                  htmlFor="question-import-default-course"
+                  className="block text-xs font-semibold text-slate-700 mb-1"
+                >
+                  Mata Kuliah Default (dipakai jika Kode Mata Kuliah di file kosong)
+                </label>
+                <select
+                  id="question-import-default-course"
+                  value={importDefaultCourseId}
+                  onChange={(e) => setImportDefaultCourseId(e.target.value)}
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-300 rounded-md"
+                >
+                  <option value="">-- Umum / Tanpa Mata Kuliah Khusus --</option>
+                  {state.courses.map((c) => (
+                    <option key={c.id} value={String(c.id)}>
+                      {c.code} - {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {importMode === 'excel' ? (
+                <div className="space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-lg bg-slate-50 border border-slate-200">
+                    <div className="text-xs text-slate-700 space-y-0.5">
+                      <p className="font-semibold text-slate-900">
+                        Template Resmi 50 Soal Pilihan Ganda (Bobot 2 Poin/Soal = 100)
+                      </p>
+                      <p>
+                        Berisi 50 baris siap isi (No 1–50), Opsi A–E, Kunci Jawaban, dan Pembahasan. Baris yang kosong otomatis dilewati.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleDownload50Template}
+                      className="h-9 px-3 rounded-md border border-slate-300 bg-white hover:bg-slate-100 text-slate-900 text-xs font-semibold inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 text-orange-500" />
+                      Download Template 50 Soal PG
+                    </button>
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="question-import-file-input"
+                      className="block text-xs font-semibold text-slate-700 mb-1.5"
+                    >
+                      Pilih File Soal (.xlsx, .xls, .csv)
+                    </label>
+                    <input
+                      ref={importFileInputRef}
+                      id="question-import-file-input"
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={handleQuestionFileSelected}
+                      className="block w-full text-xs text-slate-700 file:mr-3 file:py-2 file:px-3.5 file:rounded-md file:border file:border-slate-300 file:text-xs file:font-semibold file:bg-slate-50 file:text-slate-900 hover:file:bg-slate-100 border border-slate-300 rounded-md p-1.5 cursor-pointer"
+                    />
+                    {importFileName && (
+                      <p className="text-[11px] text-slate-500 mt-1 font-mono">
+                        File dipilih: {importFileName}
+                      </p>
+                    )}
+                  </div>
+
+                  {importError && (
+                    <div
+                      role="alert"
+                      className="p-3 rounded-md bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2"
+                    >
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{importError}</span>
+                    </div>
+                  )}
+
+                  {importParseResult && importParseResult.previewRows.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-mono tabular-nums bg-slate-50 border border-slate-200 rounded-md px-3.5 py-2.5">
+                        <span>
+                          Terisi:{' '}
+                          <strong className="text-slate-900">
+                            {importParseResult.previewRows.length}
+                          </strong>
+                        </span>
+                        <span className="text-emerald-700 inline-flex items-center gap-1 font-semibold">
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          Siap Impor: {importParseResult.validItems.length}
+                        </span>
+                        <span className="text-red-600 inline-flex items-center gap-1 font-semibold">
+                          <AlertCircle className="w-3.5 h-3.5" />
+                          Invalid: {importParseResult.invalidRows.length}
+                        </span>
+                        {importParseResult.skippedEmptyRows > 0 && (
+                          <span className="text-slate-500">
+                            Kosong Dilewati: {importParseResult.skippedEmptyRows}
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="border border-slate-200 rounded-md overflow-x-auto max-h-64">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase text-slate-600 sticky top-0">
+                            <tr>
+                              <th className="py-2 px-3">No</th>
+                              <th className="py-2 px-3">Pertanyaan</th>
+                              <th className="py-2 px-3">Kunci / Bobot</th>
+                              <th className="py-2 px-3">Validasi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {importParseResult.previewRows
+                              .slice(0, 50)
+                              .map((row) => (
+                                <tr
+                                  key={`${row.rowNumber}-${row.questionNumber}`}
+                                  className={row.valid ? '' : 'bg-red-50/60'}
+                                >
+                                  <td className="py-2 px-3 font-mono tabular-nums text-slate-500">
+                                    #{row.questionNumber}
+                                  </td>
+                                  <td className="py-2 px-3 text-slate-900 max-w-xs truncate">
+                                    {row.questionText}
+                                  </td>
+                                  <td className="py-2 px-3 font-mono text-slate-700 whitespace-nowrap">
+                                    {row.correctAnswerKey} · {row.weight} pt ({row.optionCount} opsi)
+                                  </td>
+                                  <td className="py-2 px-3">
+                                    {row.valid ? (
+                                      <span className="text-emerald-700 font-semibold">
+                                        Siap Diimpor
+                                      </span>
+                                    ) : (
+                                      <span className="text-red-600 font-medium">
+                                        {row.error}
+                                      </span>
+                                    )}
+                                  </td>
+                                </tr>
+                              ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Masukkan 1 soal per baris dengan format:{' '}
+                    <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">
+                      Tipe | Kesulitan | Pertanyaan | Bobot | Kunci | Pembahasan |
+                      Opsi A | Opsi B | Opsi C | Opsi D | Opsi E
+                    </code>
+                  </p>
+                  <textarea
+                    rows={6}
+                    value={csvImportText}
+                    onChange={(e) => setCsvImportText(e.target.value)}
+                    placeholder="pilihan_ganda | Mudah | Apa protokol standar HTTPS? | 2 | A | TLS mengamankan HTTP | TLS 1.3 | FTP | Telnet | SMTP | SNMP"
+                    className="w-full p-3 text-xs font-mono border border-slate-300 rounded-lg"
+                  />
+                  {importError && (
+                    <div
+                      role="alert"
+                      className="p-3 rounded-md bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2"
+                    >
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{importError}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="px-4 sm:px-6 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-col-reverse sm:flex-row sm:items-center justify-end gap-2.5">
+              <button
+                type="button"
+                disabled={submitting}
+                onClick={() => {
+                  setShowImportModal(false);
+                  resetImportModalState();
+                }}
+                className="h-9 px-4 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg cursor-pointer"
               >
                 Batal
               </button>
               <button
                 type="button"
-                disabled={submitting || !csvImportText.trim()}
+                disabled={
+                  submitting ||
+                  (importMode === 'excel'
+                    ? !importParseResult ||
+                      importParseResult.validItems.length === 0
+                    : !csvImportText.trim())
+                }
                 onClick={handleImportSubmit}
-                className="px-4 py-2 text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 rounded-lg"
+                className="h-9 px-4 text-xs font-semibold text-white bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed rounded-lg cursor-pointer"
               >
-                {submitting ? 'Mengimpor...' : 'Proses Import Soal'}
+                {submitting
+                  ? 'Mengimpor ke Database...'
+                  : importMode === 'excel'
+                    ? `Import ${importParseResult?.validItems.length || 0} Soal ke Database`
+                    : 'Proses Import Soal'}
               </button>
             </div>
           </div>
